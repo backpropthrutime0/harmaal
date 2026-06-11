@@ -6,8 +6,11 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
+  // Initialize with the token already in localStorage (if any)
   token: localStorage.getItem('token'),
-  setToken: (token) => {
+  
+  // Method to save/remove token and update global state
+  setToken: (token: string | null) => {
     if (token) {
       localStorage.setItem('token', token);
     } else {

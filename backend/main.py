@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import jwt
 from jwt.exceptions import InvalidTokenError
@@ -15,8 +16,19 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Harmaal Master API")
 
+# --- CORS SETUP ---
+# This allows your React frontend (localhost:5173) to communicate with this API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # --- SECURITY SETUP ---
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+# Changed tokenUrl to 'login/' to match your defined route
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login/")
 
 # Database dependency
 def get_db():

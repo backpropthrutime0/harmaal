@@ -1,24 +1,31 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import LandingPage from './LandingPage';
 import LoginPage from './LoginPage';
 import Dashboard from './Dashboard';
 import Navbar from './Navbar';
+import PrivateRoute from './PrivateRoute';
+import Profile from './Profile'; // Imported your Profile component
 
 export default function App() {
   return (
     <Router>
-      {/* Navbar stays at the top of every page */}
       <Navbar />
-      
       <Routes>
         {/* Public Routes */}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         
-        {/* Protected Routes (Authenticated) */}
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/profile" element={<div className="p-10">Profile Settings (Coming Soon)</div>} />
-        
-        {/* Catch-all: Redirects any unknown URL back to Dashboard */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Private Routes */}
+        <Route path="/dashboard" element={
+          <PrivateRoute>
+            <Dashboard />
+          </PrivateRoute>
+        } />
+        <Route path="/profile" element={
+          <PrivateRoute>
+            <Profile />
+          </PrivateRoute>
+        } />
       </Routes>
     </Router>
   );
