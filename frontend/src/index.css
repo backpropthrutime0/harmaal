@@ -1,3 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+body {
+  background-color: #f9fafb; /* manual fallback for bg-gray-50 just in case */
+  color: #111827;
+}

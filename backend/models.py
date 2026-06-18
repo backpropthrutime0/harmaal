@@ -26,6 +26,11 @@ class Tenant(Base):
     name = Column(String, index=True)
     email = Column(String)
     rent_amount = Column(Float)
+    
+    # --- NEW LEASE DATA ---
+    lease_start_date = Column(String) 
+    lease_end_date = Column(String)   
+    
     property_id = Column(Integer, ForeignKey("properties.id"))
     property = relationship("Property", back_populates="tenants")
     # Link back to payment history

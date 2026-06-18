@@ -16,14 +16,19 @@ class TenantCreate(BaseModel):
     name: str
     email: str
     rent_amount: float
+    lease_start_date: str  # NEW
+    lease_end_date: str    # NEW
 
 class TenantResponse(BaseModel):
     id: int
     name: str
     email: str
     rent_amount: float
+    lease_start_date: str  # NEW
+    lease_end_date: str    # NEW
     property_id: int
     payments: list[PaymentResponse] = [] # Shows rent history
+    
     class Config:
         from_attributes = True
 

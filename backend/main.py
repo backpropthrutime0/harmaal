@@ -17,7 +17,6 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI(title="Harmaal Master API")
 
 # --- CORS SETUP ---
-# This allows your React frontend (localhost:5173) to communicate with this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -27,10 +26,8 @@ app.add_middleware(
 )
 
 # --- SECURITY SETUP ---
-# Changed tokenUrl to 'login/' to match your defined route
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login/")
 
-# Database dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -38,7 +35,6 @@ def get_db():
     finally:
         db.close()
 
-# The Bouncer: Authentication checker
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -58,7 +54,6 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
-# Admin Bouncer
 def require_admin(current_user: models.User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin privileges required")
@@ -136,6 +131,34 @@ def add_tenant_to_property(property_id: int, tenant_data: schemas.TenantCreate, 
     db.refresh(new_tenant)
     return new_tenant
 
+@app.get("/properties/{property_id}/tenants/", response_model=list[schemas.TenantResponse])
+def get_tenants_for_property(property_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_prop = db.query(models.Property).filter(models.Property.id == property_id, models.Property.owner_id == current_user.id).first()
+    if not db_prop:
+        raise HTTPException(status_code=404, detail="Property not found or unauthorized")
+    return db_prop.tenants
+
+# --- TENANT MANAGEMENT (UPDATE/DELETE) ---
+@app.put("/tenants/{tenant_id}", response_model=schemas.TenantResponse)
+def update_tenant(tenant_id: int, tenant_data: schemas.TenantCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id, models.Tenant.property.has(owner_id=current_user.id)).first()
+    if not db_tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    for key, value in tenant_data.dict().items():
+        setattr(db_tenant, key, value)
+    db.commit()
+    db.refresh(db_tenant)
+    return db_tenant
+
+@app.delete("/tenants/{tenant_id}")
+def delete_tenant(tenant_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    db_tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id, models.Tenant.property.has(owner_id=current_user.id)).first()
+    if not db_tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    db.delete(db_tenant)
+    db.commit()
+    return {"message": "Tenant lease terminated"}
+
 @app.post("/tenants/{tenant_id}/payments/", response_model=schemas.PaymentResponse)
 def collect_rent(tenant_id: int, payment_data: schemas.PaymentCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     db_tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id, models.Tenant.property.has(owner_id=current_user.id)).first()
@@ -158,3 +181,12 @@ def get_business_summary(db: Session = Depends(get_db), admin: models.User = Dep
         "total_tenants": len(tenants),
         "total_revenue": sum(p.amount for p in payments)
     }
+
+@app.get("/tenants/me", response_model=schemas.TenantResponse)
+def get_my_lease(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "tenant":
+        raise HTTPException(status_code=403, detail="You do not have a tenant profile.")
+    db_tenant = db.query(models.Tenant).filter(models.Tenant.email == current_user.email).first()
+    if not db_tenant:
+        raise HTTPException(status_code=404, detail="No active lease found for this email.")
+    return db_tenant
