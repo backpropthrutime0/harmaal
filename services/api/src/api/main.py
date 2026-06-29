@@ -1,0 +1,69 @@
+"""Harmaal API — FastAPI application entrypoint.
+
+Wires CORS, security headers, routers, and startup seeding. Schema is managed by
+Alembic in production (``alembic upgrade head`` before boot); set
+``AUTO_CREATE_TABLES=true`` for quick local/dev runs without migrations.
+"""
+
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from api.config import settings
+from api.db import AsyncSessionFactory, Base, engine
+from api.routers import auth, dashboards, properties, rent, tenants, work_orders
+from api.seed import seed
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    if settings.auto_create_tables:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    async with AsyncSessionFactory() as session:
+        await seed(session)
+    yield
+
+
+app = FastAPI(title="Harmaal API", lifespan=lifespan)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router)
+app.include_router(properties.router)
+app.include_router(tenants.router)
+app.include_router(rent.router)
+app.include_router(work_orders.router)
+app.include_router(dashboards.router)
+
+
+@app.get("/")
+def read_root() -> dict[str, str]:
+    return {"message": "Welcome to the Harmaal API"}
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}
