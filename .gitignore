@@ -2,8 +2,18 @@
 __pycache__/
 .venv/
 .env
+.env.*
+!.env.example
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+build/
 
 # Node
 node_modules/
 dist/
 .vite/
+
+# Claude Code (personal)
+.claude/settings.local.json
+CLAUDE.local.md

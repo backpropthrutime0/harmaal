@@ -1,30 +1,50 @@
-version: '3.8'
-
 services:
-  # 1. The PostgreSQL Database
+  # 1. PostgreSQL
   db:
-    image: postgres:15
+    image: postgres:16
     container_name: harmaal_db
     restart: always
     environment:
-      POSTGRES_USER: harmaal_admin
-      POSTGRES_PASSWORD: supersecretpassword
-      POSTGRES_DB: harmaal_erp
+      POSTGRES_USER: ${POSTGRES_USER:-harmaal_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-supersecretpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-harmaal_erp}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-harmaal_admin}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  # 2. The FastAPI Backend
+  # 2. FastAPI backend (async). Build context is the repo root so the image can
+  #    copy both services/api and the shared/ migrations tree.
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
     container_name: harmaal_backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
     depends_on:
-      - db
-    volumes:
-      - ./backend:/app 
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-harmaal_admin}:${POSTGRES_PASSWORD:-supersecretpassword}@db:5432/${POSTGRES_DB:-harmaal_erp}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_IN_PRODUCTION_at_least_32_chars_xx}
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-8}
+      TOTP_ISSUER: ${TOTP_ISSUER:-Harmaal}
+      ROOT_EMAIL: ${ROOT_EMAIL:-admin@harmaal.local}
+      ROOT_PASSWORD: ${ROOT_PASSWORD:-changeme}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

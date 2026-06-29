@@ -1,0 +1,31 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Claude review
+        uses: anthropic/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          direct_prompt: |
+            Review this Harmaal PR (FastAPI async + SQLAlchemy 2.0 + Alembic; React/TS/Vite/Tailwind/zustand).
+            Focus only on bugs and security:
+            - async safety: no blocking calls in async def; await all DB calls; no MissingGreenlet lazy-loads (use selectinload).
+            - FastAPI deps: Annotated[..., Depends()]; auth via get_current_user / RequireRole / RequirePermission.
+            - JWT pinned to HS256; MFA-stage tokens rejected for API access.
+            - Pydantic v2: request models extra="forbid"; response_model set; no leaking hashed_password / totp_secret.
+            - SQLAlchemy 2.0 parameterized queries; no f-strings in text().
+            - No hardcoded secrets (use settings).
+            - Schema changes have an Alembic migration with a real downgrade().
+            Be concise; report only real issues.

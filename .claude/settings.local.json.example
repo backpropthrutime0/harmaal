@@ -1,0 +1,9 @@
+{
+  "_comment": "Personal, machine-local overrides. Copy to settings.local.json (gitignored) and adjust. Never commit real secrets.",
+  "env": {
+    "DATABASE_URL": "postgresql+asyncpg://harmaal_admin:supersecretpassword@localhost:5432/harmaal_erp"
+  },
+  "permissions": {
+    "allow": []
+  }
+}
