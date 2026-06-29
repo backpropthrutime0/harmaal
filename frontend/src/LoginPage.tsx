@@ -1,127 +1,186 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from './api';
+import { useAuthStore } from './authStore';
+import { login, verify2fa, errorMessage, type LoginResult } from './auth/authApi';
 
 export default function LoginPage() {
+  const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
+  const [portal, setPortal] = useState<'admin' | 'management' | 'maintenance' | 'tenant'>('management');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'tenant' | 'employee' | 'manager'>('tenant');
+  const [mfaToken, setMfaToken] = useState('');
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const setSession = useAuthStore((s) => s.setSession);
+
+  const finish = (result: LoginResult) => {
+    if (!result.access_token || !result.user) {
+      setError('Unexpected response from server.');
+      return;
+    }
+    setSession(result.access_token, result.user);
+    // Route by the account's actual role (authoritative), not the selected tab.
+    if (result.must_change_password) {
+      navigate('/change-password');
+    } else if (result.user.role === 'tenant') {
+      navigate('/portal');
+    } else {
+      // admin / manager / maintenance all land on the role-dispatched dashboard
+      navigate('/dashboard');
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setLoading(true);
     try {
-      const formData = new URLSearchParams();
-      formData.append('username', email); 
-      formData.append('password', password);
-      // Optional: Send the role to the backend if your API requires it
-      // formData.append('scope', role); 
-
-      // FIX: Pointed exactly to /login/ to match your Python backend door
-      const response = await api.post('/login/', formData, {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-      });
-      
-      localStorage.setItem('token', response.data.access_token);
-      
-      // Route them based on their role
-      if (role === 'tenant') navigate('/portal');
-      else navigate('/dashboard');
-      
+      const result = await login(email, password);
+      if (result.status === 'mfa_required' && result.mfa_token) {
+        setMfaToken(result.mfa_token);
+        setStep('mfa');
+      } else {
+        finish(result);
+      }
     } catch (err) {
-      setError('Invalid credentials. Please try again.');
+      setError(errorMessage(err, 'Invalid credentials. Please try again.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      finish(await verify2fa(mfaToken, code));
+    } catch (err) {
+      setError(errorMessage(err, 'Invalid or expired code.'));
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-50 px-6">
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
-        
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Sign In</h1>
-          <p className="text-slate-500">Access your Harmaal account.</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">
+            {step === 'credentials' ? 'Access Portal' : 'Two-Factor Verification'}
+          </h1>
+          <p className="text-slate-500">
+            {step === 'credentials'
+              ? 'Sign in to your Harmaal workspace.'
+              : 'Enter the 6-digit code from your authenticator app.'}
+          </p>
         </div>
 
-        {/* Role Selector Tabs */}
-        <div className="flex bg-slate-100 p-1 rounded-xl mb-8">
-          <button 
-            type="button"
-            onClick={() => setRole('tenant')} 
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-              role === 'tenant' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Tenant
-          </button>
-          <button 
-            type="button"
-            onClick={() => setRole('employee')} 
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-              role === 'employee' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Employee
-          </button>
-          <button 
-            type="button"
-            onClick={() => setRole('manager')} 
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
-              role === 'manager' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            Manager
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center">
-            {error}
+        {step === 'credentials' && (
+          <div className="flex bg-slate-100 p-1 rounded-xl mb-8">
+            {([
+              ['admin', 'Admin'],
+              ['management', 'Management'],
+              ['maintenance', 'Maintenance'],
+              ['tenant', 'Tenant'],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPortal(key)}
+                className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 ${
+                  portal === key ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-6">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
-            <input
-              type="email"
-              required
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={role === 'tenant' ? "tenant@email.com" : "name@harmaal.com"}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
-            <input
-              type="password"
-              required
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
-          </div>
-          
-          <button
-            type="submit"
-            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-md"
-          >
-            {role === 'tenant' ? 'Access Tenant Portal' : 'Access System'}
-          </button>
-        </form>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-sm text-center">{error}</div>
+        )}
 
-        {/* Conditionally Render the Register Link ONLY for Tenants */}
-        {role === 'tenant' && (
+        {step === 'credentials' ? (
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
+              <input
+                type="email"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@harmaal.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+              <input
+                type="password"
+                required
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-md disabled:opacity-60"
+            >
+              {loading ? 'Signing in…' : 'Sign In'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerify} className="space-y-6">
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Authentication Code</label>
+              <input
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                required
+                autoFocus
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-center text-2xl tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-md disabled:opacity-60"
+            >
+              {loading ? 'Verifying…' : 'Verify'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStep('credentials');
+                setCode('');
+                setError('');
+              }}
+              className="w-full text-slate-500 text-sm hover:text-slate-700"
+            >
+              ← Back to login
+            </button>
+          </form>
+        )}
+
+        {step === 'credentials' && portal === 'tenant' && (
           <div className="mt-8 text-center text-sm text-slate-500">
-            Need to activate your lease?{' '}
+            Not a tenant yet?{' '}
             <Link to="/register" className="text-blue-600 font-semibold hover:underline">
-              Create tenant profile
+              Become a tenant
             </Link>
           </div>
         )}
-
       </div>
     </div>
   );

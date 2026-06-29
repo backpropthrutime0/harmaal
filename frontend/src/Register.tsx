@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from './api';
+import { register, errorMessage } from './auth/authApi';
 
 export default function Register() {
   const [firstName, setFirstName] = useState('');
@@ -14,17 +14,14 @@ export default function Register() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
-      // FIX: Pointed exactly to /users/ and only sending the 3 fields your Python DB wants
-      await api.post('/users/', {
-        email: email,
-        password: password,
-        role: 'admin'
-      });
-      
+      // Self-registration creates a tenant account. Staff (admin/manager/maintenance)
+      // are provisioned by an admin via /auth/users — never self-registered.
+      await register(email, password, 'tenant');
       navigate('/login');
     } catch (err) {
-      setError('Failed to create account. Please try again.');
+      setError(errorMessage(err, 'Failed to create account. Please try again.'));
     }
   };
 
@@ -32,8 +29,8 @@ export default function Register() {
     <div className="flex items-center justify-center min-h-screen bg-slate-50 px-6 py-12">
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Account</h1>
-          <p className="text-slate-500">Initialize your Harmaal Manager Portal.</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Become a Tenant</h1>
+          <p className="text-slate-500">Create your Harmaal tenant account.</p>
         </div>
 
         {error && (
@@ -115,6 +112,9 @@ export default function Register() {
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
+            <p className="mt-2 text-xs text-slate-400">
+              At least 12 characters with upper, lower, number, and a symbol.
+            </p>
           </div>
           
           <button
