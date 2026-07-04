@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string;
   role: string;
   display_name: string | null;
+  phone?: string | null;
   is_active: boolean;
   is_system: boolean;
   totp_enabled: boolean;

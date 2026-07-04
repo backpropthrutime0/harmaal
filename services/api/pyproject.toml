@@ -16,6 +16,7 @@ dependencies = [
     "pyotp>=2.9",
     "python-multipart>=0.0.9",
     "alembic>=1.13",
+    "reportlab>=4.1",              # tenant invoice / receipt PDF generation
 ]
 
 [project.optional-dependencies]

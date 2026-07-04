@@ -113,6 +113,7 @@ def _user_out(user: User) -> UserResponse:
         email=user.email,
         role=user.role,
         display_name=user.display_name,
+        phone=user.phone,
         is_active=user.is_active,
         is_system=user.is_system,
         totp_enabled=user.totp_enabled,
@@ -143,6 +144,8 @@ async def register(
         email=body.email,
         hashed_password=hash_password(body.password),
         role=body.role,
+        display_name=body.display_name,
+        phone=body.phone,
         password_changed_at=datetime.now(UTC),
         roles=[role] if role else [],
     )

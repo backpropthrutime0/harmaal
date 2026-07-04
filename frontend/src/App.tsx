@@ -26,6 +26,7 @@ export default function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/tenant-login" element={<LoginPage tenant />} />
         <Route path="/change-password" element={<ChangePassword />} />
 
         {/* Dashboard (role-dispatched: owner / manager / maintenance) */}

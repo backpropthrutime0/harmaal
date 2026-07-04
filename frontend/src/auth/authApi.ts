@@ -19,8 +19,13 @@ export async function verify2fa(mfaToken: string, code: string): Promise<LoginRe
   return data;
 }
 
-export async function register(email: string, password: string, role: 'tenant' | 'owner'): Promise<AuthUser> {
-  const { data } = await api.post<AuthUser>('/auth/register', { email, password, role });
+export async function register(
+  email: string,
+  password: string,
+  role: 'tenant' | 'owner',
+  extra?: { display_name?: string; phone?: string },
+): Promise<AuthUser> {
+  const { data } = await api.post<AuthUser>('/auth/register', { email, password, role, ...extra });
   return data;
 }
 

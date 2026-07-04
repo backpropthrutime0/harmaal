@@ -60,6 +60,7 @@ class User(Base):
     # Coarse role for routing/seeding: admin | owner | tenant
     role: Mapped[str] = mapped_column(String(20), default="tenant")
     display_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -142,9 +143,37 @@ class Payment(Base):
     paid_date: Mapped[str | None] = mapped_column(String, nullable=True)
     status: Mapped[str] = mapped_column(String(10), default="pending")  # pending|paid
     method: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Cash-drawer tracking: a paid cash charge sits "on hand" until a manager
+    # checks it off as deposited to the bank.
+    deposited: Mapped[bool] = mapped_column(Boolean, default=False)
+    deposited_date: Mapped[str | None] = mapped_column(String, nullable=True)  # YYYY-MM-DD
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"))
 
     tenant: Mapped[Tenant] = relationship(back_populates="payments")
+
+
+class Expense(Base):
+    """A property operating expense logged by management.
+
+    ``paid_in_cash`` marks expenses drawn from collected cash (they reduce
+    cash-on-hand). Non-cash expenses (bank/card) are recorded for the books but
+    don't touch the cash drawer. Maintenance work-order costs are tracked
+    separately on ``WorkOrder.cost`` and folded into cash-spent reporting.
+    """
+
+    __tablename__ = "expenses"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    description: Mapped[str] = mapped_column(String(200))
+    amount: Mapped[float] = mapped_column(Float)
+    category: Mapped[str] = mapped_column(String(30), default="general")
+    period: Mapped[str] = mapped_column(String(7), default="", index=True)  # YYYY-MM
+    spent_date: Mapped[str] = mapped_column(String, default="")  # YYYY-MM-DD
+    paid_in_cash: Mapped[bool] = mapped_column(Boolean, default=True)
+    property_id: Mapped[int | None] = mapped_column(ForeignKey("properties.id"), nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+    property: Mapped[Property | None] = relationship(lazy="selectin")
 
 
 class WorkOrder(Base):
@@ -164,6 +193,10 @@ class WorkOrder(Base):
     assigned_to: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Whether the repair was settled from the cash drawer (only cash-paid costs
+    # reduce cash-on-hand in the finance rollup). Defaults True to match the
+    # pre-existing behaviour where every work-order cost counted as cash.
+    paid_in_cash: Mapped[bool] = mapped_column(Boolean, default=True)
     scheduled_for: Mapped[str | None] = mapped_column(String, nullable=True)
     completed_at: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -49,6 +49,8 @@ export interface ChargeRow {
   paid_date?: string | null;
   status: string;
   method?: string | null;
+  deposited: boolean;
+  deposited_date?: string | null;
 }
 
 export interface Charge {
@@ -59,8 +61,45 @@ export interface Charge {
   paid_date?: string | null;
   status: string;
   method?: string | null;
+  deposited?: boolean;
+  deposited_date?: string | null;
   tenant_id: number;
 }
+
+export interface MonthlyFinancials {
+  period: string;
+  due: number;
+  collected: number;
+  outstanding: number;
+  cash_collected: number;
+  cash_deposited: number;
+  cash_spent_on_expenses: number;
+  cash_on_hand: number;
+  charge_count: number;
+  paid_count: number;
+  undeposited_count: number;
+}
+
+export interface Expense {
+  id: number;
+  description: string;
+  amount: number;
+  category: string;
+  period: string;
+  spent_date: string;
+  paid_in_cash: boolean;
+  property_id?: number | null;
+  property_address?: string | null;
+}
+
+export const EXPENSE_CATEGORIES = [
+  'maintenance',
+  'utilities',
+  'insurance',
+  'taxes',
+  'management',
+  'general',
+];
 
 export interface WorkOrderMessage {
   id: number;
@@ -87,6 +126,7 @@ export interface WorkOrder {
   assignee_name?: string | null;
   created_by?: number | null;
   cost?: number | null;
+  paid_in_cash: boolean;
   scheduled_for?: string | null;
   completed_at?: string | null;
   created_at: string;

@@ -16,7 +16,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.config import settings
 from api.db import AsyncSessionFactory, Base, engine
-from api.routers import auth, dashboards, properties, rent, tenants, work_orders
+from api.routers import (
+    auth,
+    dashboards,
+    finance,
+    invoices,
+    properties,
+    rent,
+    tenants,
+    work_orders,
+)
 from api.seed import seed
 
 
@@ -57,6 +66,8 @@ app.include_router(tenants.router)
 app.include_router(rent.router)
 app.include_router(work_orders.router)
 app.include_router(dashboards.router)
+app.include_router(finance.router)
+app.include_router(invoices.router)
 
 
 @app.get("/")

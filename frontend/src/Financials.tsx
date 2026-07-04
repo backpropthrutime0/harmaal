@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getCharges, recordPayment } from './data/api';
+import { downloadInvoice, getCharges, recordPayment } from './data/api';
 import type { ChargeRow } from './data/types';
 import { Badge, Card, EmptyState, Loading, PageHeader, money } from './components/ui';
 
@@ -102,18 +102,27 @@ export default function Financials() {
                   <td className="px-5 py-3">
                     <Badge value={c.status} />
                   </td>
-                  <td className="px-5 py-3 text-right">
-                    {c.status !== 'paid' ? (
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      {c.status !== 'paid' ? (
+                        <button
+                          onClick={() => pay(c.id)}
+                          disabled={busy === c.id}
+                          className="bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {busy === c.id ? '…' : 'Record payment'}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">{c.paid_date}</span>
+                      )}
                       <button
-                        onClick={() => pay(c.id)}
-                        disabled={busy === c.id}
-                        className="bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        onClick={() => downloadInvoice(c.id)}
+                        title="Download PDF to send to the tenant"
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
                       >
-                        {busy === c.id ? '…' : 'Record payment'}
+                        ⤓ {c.status === 'paid' ? 'Receipt' : c.status === 'overdue' ? 'Reminder' : 'Invoice'}
                       </button>
-                    ) : (
-                      <span className="text-xs text-slate-400">{c.paid_date}</span>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}

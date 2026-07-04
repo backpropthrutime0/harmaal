@@ -19,6 +19,7 @@ from sqlalchemy.orm import selectinload
 from api.db import AsyncSessionFactory
 from api.internal.auth import hash_password
 from api.models.orm import (
+    Expense,
     Payment,
     Property,
     Role,
@@ -129,6 +130,7 @@ async def _wipe_business(session) -> None:
     # FK-safe order
     await session.execute(delete(WorkOrderMessage))
     await session.execute(delete(WorkOrder))
+    await session.execute(delete(Expense))
     await session.execute(delete(Payment))
     await session.execute(delete(Tenant))
     await session.execute(delete(Property))
@@ -204,12 +206,18 @@ async def build() -> None:
             for idx, (y, m) in enumerate(periods):
                 is_recent = idx >= len(periods) - unpaid_recent
                 due = f"{y}-{m:02d}-05"
+                deposited, deposited_date = False, None
                 if is_recent:
                     status, paid_date, method = "pending", None, None
                 else:
                     status = "paid"
                     paid_date = f"{y}-{m:02d}-{random.randint(2, 9):02d}"
-                    method = random.choice(["cash", "card", "transfer"])
+                    method = random.choice(["cash", "cash", "card", "transfer"])
+                    # Cash from older months is already banked; the two most recent
+                    # cash payments sit "on hand" for the manager to check off.
+                    if method == "cash" and idx < len(periods) - 2:
+                        deposited = True
+                        deposited_date = f"{y}-{m:02d}-{random.randint(10, 27):02d}"
                 session.add(
                     Payment(
                         amount=rent,
@@ -218,7 +226,37 @@ async def build() -> None:
                         paid_date=paid_date,
                         status=status,
                         method=method,
+                        deposited=deposited,
+                        deposited_date=deposited_date,
                         tenant_id=tenant.id,
+                    )
+                )
+        await session.commit()
+
+        # Operating expenses — a few per recent month, some paid in cash.
+        exp_templates = [
+            ("Landscaping & grounds", "maintenance"),
+            ("Common-area cleaning", "maintenance"),
+            ("Water & sewer", "utilities"),
+            ("Electricity (common areas)", "utilities"),
+            ("Property insurance", "insurance"),
+            ("Plumbing supplies", "maintenance"),
+            ("Pest control", "maintenance"),
+        ]
+        for y, m in periods[-4:]:  # last four months
+            for _ in range(random.randint(2, 4)):
+                desc, cat = random.choice(exp_templates)
+                prop = random.choice(props)
+                session.add(
+                    Expense(
+                        description=desc,
+                        amount=float(random.randint(60, 480)),
+                        category=cat,
+                        period=f"{y}-{m:02d}",
+                        spent_date=f"{y}-{m:02d}-{random.randint(3, 26):02d}",
+                        paid_in_cash=random.random() < 0.6,
+                        property_id=prop.id,
+                        created_by=manager.id,
                     )
                 )
         await session.commit()
@@ -252,6 +290,7 @@ async def build() -> None:
                 done = created + timedelta(days=random.randint(1, 6))
                 wo.completed_at = done.isoformat()
                 wo.cost = float(random.randint(80, 600))
+                wo.paid_in_cash = random.random() < 0.5  # mix of cash vs bank/card repairs
                 wo.scheduled_for = (created + timedelta(days=1)).date().isoformat()
             session.add(wo)
             await session.flush()

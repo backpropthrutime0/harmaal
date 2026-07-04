@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getManagerDashboard } from '../data/api';
 import type { ManagerDashboard as ManagerData } from '../data/types';
 import { Card, EmptyState, Loading, PageHeader, StatCard, money } from '../components/ui';
+import { MonthlyFinancials } from './MonthlyFinancials';
 
 export default function ManagerDashboard() {
   const [data, setData] = useState<ManagerData | null>(null);
@@ -22,6 +23,10 @@ export default function ManagerDashboard() {
         <StatCard label="Collected This Month" value={money(data.collected_this_month)} tone="good" />
         <StatCard label="Overdue Total" value={money(data.overdue_total)} tone={data.overdue_total > 0 ? 'bad' : 'good'} />
         <StatCard label="Open Work Orders" value={data.open_work_orders} tone={data.open_work_orders > 0 ? 'warn' : 'good'} />
+      </div>
+
+      <div className="mb-6">
+        <MonthlyFinancials />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

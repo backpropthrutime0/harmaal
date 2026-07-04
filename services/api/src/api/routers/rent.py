@@ -13,7 +13,7 @@ from api.db import get_session
 from api.internal.auth import RequirePermission, TokenData, get_current_user
 from api.internal.scoping import tenant_ids_for_user
 from api.models.orm import Payment, Property, Tenant
-from api.models.schemas import ChargeRow, PaymentResponse, RecordPaymentRequest
+from api.models.schemas import ChargeRow, DepositRequest, PaymentResponse, RecordPaymentRequest
 
 router = APIRouter(tags=["rent"])
 
@@ -68,6 +68,8 @@ async def rent_roll(
                 paid_date=payment.paid_date,
                 status=derived,
                 method=payment.method,
+                deposited=payment.deposited,
+                deposited_date=payment.deposited_date,
             )
         )
     return charges
@@ -96,6 +98,26 @@ async def record_payment(
     payment.status = "paid"
     payment.paid_date = body.paid_date or _today()
     payment.method = body.method or "cash"
+    await session.commit()
+    await session.refresh(payment)
+    return payment
+
+
+@router.patch("/charges/{charge_id}/deposit", response_model=PaymentResponse)
+async def set_deposited(
+    charge_id: int,
+    body: DepositRequest,
+    _: ManageTenants,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Payment:
+    """Check a paid cash charge off as deposited (or undo it)."""
+    payment = (await session.execute(select(Payment).where(Payment.id == charge_id))).scalar_one_or_none()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Charge not found")
+    if payment.status != "paid":
+        raise HTTPException(status_code=409, detail="Only paid charges can be deposited")
+    payment.deposited = body.deposited
+    payment.deposited_date = (body.deposited_date or _today()) if body.deposited else None
     await session.commit()
     await session.refresh(payment)
     return payment

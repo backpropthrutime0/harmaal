@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from api.internal.password_validation import validate_password_strength
 
@@ -29,6 +29,14 @@ class RegisterRequest(BaseModel):
     email: str
     password: str
     role: str = "tenant"
+    display_name: str | None = None
+    phone: str | None = None
+
+    @field_validator("display_name", "phone")
+    @classmethod
+    def blank_to_none(cls, v: str | None) -> str | None:
+        v = v.strip() if v else v
+        return v or None
 
     @field_validator("email")
     @classmethod
@@ -133,6 +141,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     display_name: str | None = None
+    phone: str | None = None
     is_active: bool
     is_system: bool
     totp_enabled: bool
@@ -175,6 +184,8 @@ class PaymentResponse(BaseModel):
     paid_date: str | None = None
     status: str
     method: str | None = None
+    deposited: bool = False
+    deposited_date: str | None = None
     tenant_id: int
 
 
@@ -182,6 +193,14 @@ class RecordPaymentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     method: str | None = "cash"
     paid_date: str | None = None  # defaults to today on the server
+
+
+class DepositRequest(BaseModel):
+    """Toggle a paid cash charge between 'on hand' and 'deposited'."""
+
+    model_config = ConfigDict(extra="forbid")
+    deposited: bool
+    deposited_date: str | None = None  # defaults to today when marking deposited
 
 
 class ChargeRow(BaseModel):
@@ -199,6 +218,54 @@ class ChargeRow(BaseModel):
     paid_date: str | None = None
     status: str  # pending | paid | overdue (derived)
     method: str | None = None
+    deposited: bool = False
+    deposited_date: str | None = None
+
+
+# --- Expenses & cash reporting ---
+
+
+class ExpenseCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    description: str = Field(min_length=1, max_length=200)
+    amount: float = Field(gt=0)
+    category: str = "general"
+    period: str = Field(pattern=r"^\d{4}-\d{2}$")  # YYYY-MM
+    spent_date: str | None = None  # defaults to today
+    paid_in_cash: bool = True
+    property_id: int | None = None
+
+
+class ExpenseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    description: str
+    amount: float
+    category: str
+    period: str
+    spent_date: str
+    paid_in_cash: bool
+    property_id: int | None = None
+    property_address: str | None = None
+
+
+class MonthlyFinancials(BaseModel):
+    """One month's rent + cash-drawer rollup for the manager view."""
+
+    period: str  # YYYY-MM
+    # Rent ledger
+    due: float
+    collected: float
+    outstanding: float
+    # Cash drawer (a three-way split of cash actually collected this period)
+    cash_collected: float
+    cash_deposited: float
+    cash_spent_on_expenses: float
+    cash_on_hand: float
+    # Counts for context
+    charge_count: int
+    paid_count: int
+    undeposited_count: int  # paid cash charges not yet checked off as deposited
 
 
 # --- Tenants & properties ---
@@ -265,6 +332,7 @@ class WorkOrderUpdate(BaseModel):
     assigned_to: int | None = None
     priority: str | None = None
     cost: float | None = None
+    paid_in_cash: bool | None = None
     scheduled_for: str | None = None
 
 
@@ -305,6 +373,7 @@ class WorkOrderResponse(BaseModel):
     assignee_name: str | None = None
     created_by: int | None = None
     cost: float | None = None
+    paid_in_cash: bool = True
     scheduled_for: str | None = None
     completed_at: str | None = None
     created_at: datetime

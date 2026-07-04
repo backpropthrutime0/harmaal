@@ -3,9 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './authStore';
 import { login, verify2fa, errorMessage, type LoginResult } from './auth/authApi';
 
-export default function LoginPage() {
+interface LoginPageProps {
+  /** Tenant entry point: no staff portal tabs, offers registration. */
+  tenant?: boolean;
+}
+
+export default function LoginPage({ tenant = false }: LoginPageProps) {
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
-  const [portal, setPortal] = useState<'admin' | 'management' | 'maintenance' | 'tenant'>('management');
+  const [portal, setPortal] = useState<'admin' | 'management' | 'maintenance'>('management');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mfaToken, setMfaToken] = useState('');
@@ -69,22 +74,27 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            {step === 'credentials' ? 'Access Portal' : 'Two-Factor Verification'}
+            {step === 'mfa'
+              ? 'Two-Factor Verification'
+              : tenant
+                ? 'Tenant Sign In'
+                : 'Management'}
           </h1>
           <p className="text-slate-500">
-            {step === 'credentials'
-              ? 'Sign in to your Harmaal workspace.'
-              : 'Enter the 6-digit code from your authenticator app.'}
+            {step === 'mfa'
+              ? 'Enter the 6-digit code from your authenticator app.'
+              : tenant
+                ? 'Sign in to your resident portal.'
+                : 'Sign in to your Harmaal workspace.'}
           </p>
         </div>
 
-        {step === 'credentials' && (
+        {step === 'credentials' && !tenant && (
           <div className="flex bg-slate-100 p-1 rounded-xl mb-8">
             {([
               ['admin', 'Admin'],
               ['management', 'Management'],
               ['maintenance', 'Maintenance'],
-              ['tenant', 'Tenant'],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -173,9 +183,9 @@ export default function LoginPage() {
           </form>
         )}
 
-        {step === 'credentials' && portal === 'tenant' && (
+        {step === 'credentials' && tenant && (
           <div className="mt-8 text-center text-sm text-slate-500">
-            Not a tenant yet?{' '}
+            New here?{' '}
             <Link to="/register" className="text-blue-600 font-semibold hover:underline">
               Become a tenant
             </Link>

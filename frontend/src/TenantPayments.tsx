@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getMyCharges } from './data/api';
+import { downloadMyInvoice, getMyCharges } from './data/api';
 import type { Charge } from './data/types';
 import { Badge, Card, EmptyState, Loading, PageHeader, money } from './components/ui';
 
@@ -27,6 +27,7 @@ export default function TenantPayments() {
                 <th className="px-5 py-3 font-semibold">Amount</th>
                 <th className="px-5 py-3 font-semibold">Status</th>
                 <th className="px-5 py-3 font-semibold">Paid</th>
+                <th className="px-5 py-3 font-semibold text-right">Invoice</th>
               </tr>
             </thead>
             <tbody>
@@ -39,6 +40,14 @@ export default function TenantPayments() {
                     <Badge value={c.status} />
                   </td>
                   <td className="px-5 py-3 text-slate-500">{c.paid_date ?? '—'}</td>
+                  <td className="px-5 py-3 text-right">
+                    <button
+                      onClick={() => downloadMyInvoice(c.id)}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50"
+                    >
+                      ⤓ {c.status === 'paid' ? 'Receipt' : 'Invoice'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

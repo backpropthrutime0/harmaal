@@ -4,6 +4,11 @@ export function money(n: number | null | undefined): string {
   return `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+/** Two-decimal variant for cash reconciliation, where cents must add up. */
+export function money2(n: number | null | undefined): string {
+  return `$${(n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function PageHeader({
   title,
   subtitle,
@@ -29,11 +34,14 @@ export function StatCard({
   value,
   sub,
   tone = 'default',
+  onClick,
 }: {
   label: string;
   value: ReactNode;
   sub?: string;
   tone?: 'default' | 'good' | 'warn' | 'bad';
+  /** When provided, the card becomes an interactive button that opens a detail view. */
+  onClick?: () => void;
 }) {
   const toneColor =
     tone === 'good'
@@ -43,11 +51,88 @@ export function StatCard({
         : tone === 'bad'
           ? 'text-red-600'
           : 'text-slate-900';
+  const interactive = onClick
+    ? 'cursor-pointer hover:shadow-md hover:border-blue-200 hover:-translate-y-0.5 transition'
+    : '';
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</div>
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`bg-white p-6 rounded-2xl shadow-sm border border-slate-100 ${interactive}`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</div>
+        {onClick && <span className="text-slate-300 text-base leading-none">→</span>}
+      </div>
       <div className={`text-3xl font-bold mt-2 ${toneColor}`}>{value}</div>
       {sub && <div className="text-sm text-slate-400 mt-1">{sub}</div>}
+    </div>
+  );
+}
+
+/** Centered overlay dialog. Backdrop click and the × button both close it. */
+export function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  onBack,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: ReactNode;
+  subtitle?: string;
+  /** When set, shows a "← Back" control (for drill-down views). */
+  onBack?: () => void;
+  children: ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-4xl my-12"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between p-6 border-b border-slate-100">
+          <div className="flex items-center gap-3 min-w-0">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="text-slate-400 hover:text-slate-700 text-sm font-semibold shrink-0"
+              >
+                ← Back
+              </button>
+            )}
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-slate-900 truncate">{title}</h2>
+              {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-slate-400 hover:text-slate-700 text-2xl leading-none shrink-0 ml-4"
+          >
+            ×
+          </button>
+        </div>
+        <div className="p-6 max-h-[70vh] overflow-y-auto">{children}</div>
+      </div>
     </div>
   );
 }

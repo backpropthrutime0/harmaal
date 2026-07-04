@@ -87,6 +87,7 @@ async def _enrich(work_orders: list[WorkOrder], session: AsyncSession) -> list[W
                 assignee_name=(assignee.display_name or assignee.email) if assignee else None,
                 created_by=w.created_by,
                 cost=w.cost,
+                paid_in_cash=w.paid_in_cash,
                 scheduled_for=w.scheduled_for,
                 completed_at=w.completed_at,
                 created_at=w.created_at,
@@ -124,8 +125,10 @@ async def maintenance_staff(
 ) -> list[StaffOut]:
     """Maintenance users for assignment dropdowns (manager-accessible, unlike /auth/users)."""
     users = (
-        await session.execute(select(User).where(User.role == "maintenance").order_by(User.display_name))
-    ).scalars().all()
+        (await session.execute(select(User).where(User.role == "maintenance").order_by(User.display_name)))
+        .scalars()
+        .all()
+    )
     return [StaffOut(id=u.id, name=u.display_name or u.email, email=u.email) for u in users]
 
 
@@ -238,10 +241,11 @@ async def update_work_order(
         if body.priority not in _PRIORITIES:
             raise HTTPException(status_code=422, detail=f"priority must be one of {sorted(_PRIORITIES)}")
         wo.priority = body.priority
-    if body.cost is not None:
-        wo.cost = body.cost
-    if body.scheduled_for is not None:
-        wo.scheduled_for = body.scheduled_for
+    # Plain optional fields with no side effects.
+    for field in ("cost", "paid_in_cash", "scheduled_for"):
+        value = getattr(body, field)
+        if value is not None:
+            setattr(wo, field, value)
 
     await session.commit()
     await session.refresh(wo)

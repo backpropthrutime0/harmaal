@@ -12,8 +12,8 @@ export default function LandingPage() {
             A seamless enterprise solution designed for the unique needs of property owners in Somaliland. Managed locally, built globally.
           </p>
           <div className="flex gap-4">
-            <a href="/login" className="bg-[#2A5C82] text-white px-8 py-4 rounded-full font-bold hover:bg-blue-900 transition shadow-lg">Access Portal</a>
-            <a href="/register" className="border-2 border-[#A67C52] text-[#A67C52] px-8 py-4 rounded-full font-bold hover:bg-[#A67C52] hover:text-white transition">Become a Tenant</a>
+            <a href="/login" className="bg-[#2A5C82] text-white px-8 py-4 rounded-full font-bold hover:bg-blue-900 transition shadow-lg">Management</a>
+            <a href="/tenant-login" className="border-2 border-[#A67C52] text-[#A67C52] px-8 py-4 rounded-full font-bold hover:bg-[#A67C52] hover:text-white transition">Tenant</a>
           </div>
         </div>
         {/* Subtle decorative background pattern */}

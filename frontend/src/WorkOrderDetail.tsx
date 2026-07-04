@@ -217,6 +217,16 @@ export default function WorkOrderDetail() {
                     Save
                   </button>
                 </div>
+                <label className="mt-2 flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={wo.paid_in_cash}
+                    onChange={(e) => patch({ paid_in_cash: e.target.checked })}
+                    className="w-4 h-4 rounded accent-harmaal-blue"
+                  />
+                  Paid from cash drawer
+                  <span className="text-xs text-slate-400">(counts against cash on hand)</span>
+                </label>
               </div>
             </Card>
           )}
