@@ -10,7 +10,8 @@ import {
 import type { WorkOrder } from './data/types';
 import { WO_PRIORITIES, WO_STATUSES } from './data/types';
 import { useAuthStore } from './authStore';
-import { Badge, Card, Loading, money } from './components/ui';
+import { Badge, Card, Loading } from './components/ui';
+import { money } from './format';
 
 function when(iso: string): string {
   try {

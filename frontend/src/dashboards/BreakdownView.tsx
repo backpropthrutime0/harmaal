@@ -5,7 +5,8 @@
  * dashboards for maintenance spend, work orders, and rent charges.
  */
 import { useMemo, useState, type ReactNode } from 'react';
-import { money, TableScroll } from '../components/ui';
+import { TableScroll } from '../components/ui';
+import { money } from '../format';
 import { Row, Td, Th } from './tables';
 
 export type BreakdownPeriod = 'month' | 'year' | 'all';

@@ -1,7 +1,8 @@
 /** Shared table primitives for dashboard detail views (owner modal + manager). */
 import type { ReactNode } from 'react';
 import type { ChargeRow, WorkOrder } from '../data/types';
-import { Badge, money, TableScroll } from '../components/ui';
+import { Badge, TableScroll } from '../components/ui';
+import { money } from '../format';
 
 export function Th({ children, right }: { children?: ReactNode; right?: boolean }) {
   return (

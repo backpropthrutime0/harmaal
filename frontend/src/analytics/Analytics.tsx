@@ -9,7 +9,8 @@ import {
   listWorkOrders,
 } from '../data/api';
 import type { ChargeRow, Expense, MonthlyFinancials, Property, Tenant, WorkOrder } from '../data/types';
-import { Loading, money, PageHeader, StatCard } from '../components/ui';
+import { Loading, PageHeader, StatCard } from '../components/ui';
+import { money } from '../format';
 import { useIsMobile } from '../hooks/useIsMobile';
 import {
   filterCharges,

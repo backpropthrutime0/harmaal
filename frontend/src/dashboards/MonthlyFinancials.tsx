@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import {
   createExpense,
   deleteExpense,
-  downloadInvoice,
   getCharges,
   getMonthlyFinancials,
   getProperties,
@@ -12,7 +11,8 @@ import {
 } from '../data/api';
 import type { ChargeRow, Expense, MonthlyFinancials as MF, Property, WorkOrder } from '../data/types';
 import { EXPENSE_CATEGORIES } from '../data/types';
-import { Badge, Card, EmptyState, Loading, Modal, money, money2, TableScroll } from '../components/ui';
+import { Badge, Card, EmptyState, Loading, Modal, TableScroll } from '../components/ui';
+import { money, money2 } from '../format';
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -117,18 +117,18 @@ function MonthDetail({
   const [properties, setProperties] = useState<Property[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
 
-  const load = async () => {
-    const [c, e, w, p] = await Promise.all([
+  const load = () =>
+    Promise.all([
       getCharges({ period }),
       listExpenses(period),
       listWorkOrders(),
       getProperties(),
-    ]);
-    setCharges(c);
-    setExpenses(e);
-    setWorkOrders(w.filter((wo) => wo.cost && wo.completed_at && wo.completed_at.slice(0, 7) === period));
-    setProperties(p);
-  };
+    ]).then(([c, e, w, p]) => {
+      setCharges(c);
+      setExpenses(e);
+      setWorkOrders(w.filter((wo) => wo.cost && wo.completed_at && wo.completed_at.slice(0, 7) === period));
+      setProperties(p);
+    });
 
   useEffect(() => {
     load();
@@ -467,6 +467,3 @@ function Mini({
     </div>
   );
 }
-
-// re-export for optional reuse
-export { downloadInvoice };

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { downloadInvoice, getCharges, recordPayment } from './data/api';
 import type { ChargeRow } from './data/types';
-import { Badge, Card, EmptyState, Loading, PageHeader, TableScroll, money } from './components/ui';
+import { Badge, Card, EmptyState, Loading, PageHeader, TableScroll } from './components/ui';
+import { money } from './format';
 
 const FILTERS = ['all', 'overdue', 'pending', 'paid'] as const;
 type Filter = (typeof FILTERS)[number];

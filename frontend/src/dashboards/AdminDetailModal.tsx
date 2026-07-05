@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getCharges, getProperties, getTenants, listWorkOrders } from '../data/api';
 import type { ChargeRow, Property, Tenant, WorkOrder } from '../data/types';
-import { Badge, Loading, Modal, TableScroll, money } from '../components/ui';
+import { Badge, Loading, Modal, TableScroll } from '../components/ui';
+import { money } from '../format';
 import { ChargeTable, Row, Td, Th, WorkOrderTable } from './tables';
 import { BreakdownView } from './BreakdownView';
 
@@ -155,43 +156,42 @@ export function AdminDetailModal({ metric, onClose }: { metric: AdminMetric | nu
   const [selProperty, setSelProperty] = useState<Property | null>(null);
   const [selTenant, setSelTenant] = useState<Tenant | null>(null);
 
-  // reset drill-down whenever the metric changes
-  useEffect(() => {
+  // Reset drill-down and show the spinner the moment the metric changes. This is
+  // React's render-phase state-adjustment pattern — the recommended alternative
+  // to an effect for "reset state when a prop changes".
+  const [prevMetric, setPrevMetric] = useState<AdminMetric | null>(null);
+  if (metric !== prevMetric) {
+    setPrevMetric(metric);
     setSelProperty(null);
     setSelTenant(null);
-  }, [metric]);
+    if (metric) setLoading(true);
+  }
 
   useEffect(() => {
     if (!metric) return;
-    setLoading(true);
-    const load = async () => {
+    // Each branch returns a promise chain so state is set in a `.then` callback
+    // (never synchronously in the effect body).
+    const load = (): Promise<unknown> => {
       switch (metric) {
         case 'properties':
         case 'occupancy':
-          setProperties(await getProperties());
-          break;
+          return getProperties().then(setProperties);
         case 'tenants':
-          setTenants(await getTenants());
-          break;
+          return getTenants().then(setTenants);
         case 'billed':
           // All charges; the breakdown's period toggle slices to month/year.
-          setCharges(await getCharges());
-          break;
+          return getCharges().then(setCharges);
         case 'collected':
-          setCharges(await getCharges({ status: 'paid' }));
-          break;
+          return getCharges({ status: 'paid' }).then(setCharges);
         case 'outstanding':
-          setCharges((await getCharges()).filter((c) => c.status !== 'paid'));
-          break;
+          return getCharges().then((c) => setCharges(c.filter((x) => x.status !== 'paid')));
         case 'work_orders':
-          setWorkOrders((await listWorkOrders()).filter((w) => OPEN_WO.includes(w.status)));
-          break;
+          return listWorkOrders().then((w) => setWorkOrders(w.filter((x) => OPEN_WO.includes(x.status))));
         case 'maintenance':
           // All completed, costed work orders; period toggle handles YTD/monthly.
-          setWorkOrders(
-            (await listWorkOrders()).filter((w) => w.cost && w.completed_at),
-          );
-          break;
+          return listWorkOrders().then((w) => setWorkOrders(w.filter((x) => x.cost && x.completed_at)));
+        default:
+          return Promise.resolve();
       }
     };
     load()

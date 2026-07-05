@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { downloadMyInvoice, getMyCharges } from './data/api';
 import type { Charge } from './data/types';
-import { Badge, Card, EmptyState, Loading, PageHeader, TableScroll, money } from './components/ui';
+import { Badge, Card, EmptyState, Loading, PageHeader, TableScroll } from './components/ui';
+import { money } from './format';
 
 export default function TenantPayments() {
   const [charges, setCharges] = useState<Charge[] | null>(null);

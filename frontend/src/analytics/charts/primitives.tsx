@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { money } from '../../components/ui';
+import { money } from '../../format';
 
 /**
  * Minimal, version-stable tooltip prop shape. Recharts passes `active`,

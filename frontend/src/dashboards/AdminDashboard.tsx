@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { getAdminDashboard } from '../data/api';
 import type { AdminDashboard as AdminData } from '../data/types';
-import { Card, Loading, PageHeader, StatCard, money } from '../components/ui';
+import { Card, Loading, PageHeader, StatCard } from '../components/ui';
+import { money } from '../format';
 import { AdminDetailModal, type AdminMetric } from './AdminDetailModal';
 
 export default function AdminDashboard() {

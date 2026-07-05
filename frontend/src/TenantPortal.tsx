@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getMyCharges, getMyLease } from './data/api';
 import type { Charge, Tenant } from './data/types';
-import { Card, Loading, PageHeader, StatCard, money } from './components/ui';
+import { Card, Loading, PageHeader, StatCard } from './components/ui';
+import { money } from './format';
 
 export default function TenantPortal() {
   const [lease, setLease] = useState<Tenant | null>(null);

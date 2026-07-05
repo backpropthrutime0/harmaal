@@ -3,7 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import api from './api';
 import { register as registerTenant } from './auth/authApi';
 import type { Property, Tenant } from './data/types';
-import { Card, EmptyState, Loading, PageHeader, TableScroll, money } from './components/ui';
+import { Card, EmptyState, Loading, PageHeader, TableScroll } from './components/ui';
+import { money } from './format';
 
 export default function PropertyDetail() {
   const { id } = useParams<{ id: string }>();
@@ -13,14 +14,14 @@ export default function PropertyDetail() {
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState('');
 
-  const load = async () => {
-    const [prop, t] = await Promise.all([
+  const load = () =>
+    Promise.all([
       api.get<Property>(`/properties/${propId}`).then((r) => r.data),
       api.get<Tenant[]>(`/properties/${propId}/tenants/`).then((r) => r.data),
-    ]);
-    setProperty(prop);
-    setTenants(t);
-  };
+    ]).then(([prop, t]) => {
+      setProperty(prop);
+      setTenants(t);
+    });
 
   useEffect(() => {
     load().catch(() => setTenants([]));

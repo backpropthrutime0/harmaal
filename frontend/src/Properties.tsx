@@ -18,18 +18,13 @@ export default function Properties() {
   const [newUnits, setNewUnits] = useState('');
   const [toast, setToast] = useState(''); 
 
-  const fetchProperties = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await api.get('/properties/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setProperties(response.data);
-    } catch (err) {
-      console.error("Failed to fetch properties:", err);
-    } finally {
-      setLoading(false);
-    }
+  const fetchProperties = () => {
+    const token = localStorage.getItem('token');
+    return api
+      .get('/properties/', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => setProperties(response.data))
+      .catch((err) => console.error('Failed to fetch properties:', err))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -56,7 +51,7 @@ export default function Properties() {
       fetchProperties(); 
 
       setTimeout(() => setToast(''), 3000);
-    } catch (err) {
+    } catch {
       alert("Failed to add property. Please check your inputs.");
     }
   };
@@ -77,7 +72,7 @@ export default function Properties() {
       setToast(`${address} has been removed from your portfolio.`);
       fetchProperties(); // Refresh the grid
       setTimeout(() => setToast(''), 3000);
-    } catch (err) {
+    } catch {
       alert("Failed to delete property. Make sure you have admin privileges.");
     }
   };
