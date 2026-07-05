@@ -50,6 +50,9 @@ export function ProfitCharts({
       }
       return r;
     };
+    // `expenses` (operating: utilities/insurance/operating-maintenance) and `wo`
+    // (repair-job costs) are disjoint streams — a WO cost is never also an Expense
+    // row — so `costs = expenses + wo` is the full cost base, not a double count.
     for (const c of charges) if (c.status === 'paid') get(c.period).revenue += c.amount;
     for (const e of expenses) get(e.period).expenses += e.amount;
     for (const w of workOrders) if (w.completed_at && w.cost) get(periodOf(w.completed_at)).wo += w.cost;

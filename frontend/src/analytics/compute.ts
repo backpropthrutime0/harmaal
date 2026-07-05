@@ -28,6 +28,19 @@ export function daysBetween(aISO: string | null | undefined, bISO: string | null
   return Math.round((b - a) / 86_400_000);
 }
 
+/**
+ * Whether a lease is active on `refDate` ('YYYY-MM-DD'), inclusive of both
+ * bounds. `'YYYY-MM-DD'` strings sort chronologically, so a plain string
+ * compare is correct and timezone-free. Used to compute point-in-time occupancy
+ * (e.g. "how many units were leased at the end of the selected range?").
+ */
+export function isLeaseActive(
+  lease: { lease_start_date: string; lease_end_date: string },
+  refDate: string,
+): boolean {
+  return lease.lease_start_date <= refDate && refDate <= lease.lease_end_date;
+}
+
 // --------------------------------------------------------------------------
 // Generic aggregation
 // --------------------------------------------------------------------------

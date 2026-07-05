@@ -6,6 +6,7 @@ import {
   daysBetween,
   groupBy,
   histogram,
+  isLeaseActive,
   kde,
   perStaffOnTime,
   periodOf,
@@ -455,5 +456,18 @@ describe('sumBy / groupBy', () => {
     // Using getDate that returns null for all rows
     const result = sumByPeriod(rows, () => null, (c) => c.amount);
     expect(result).toEqual([]);
+  });
+});
+
+describe('isLeaseActive', () => {
+  const lease = { lease_start_date: '2025-01-01', lease_end_date: '2026-12-31' };
+  it('true within the lease window (inclusive bounds)', () => {
+    expect(isLeaseActive(lease, '2025-06-15')).toBe(true);
+    expect(isLeaseActive(lease, '2025-01-01')).toBe(true);
+    expect(isLeaseActive(lease, '2026-12-31')).toBe(true);
+  });
+  it('false before start or after end', () => {
+    expect(isLeaseActive(lease, '2024-12-31')).toBe(false);
+    expect(isLeaseActive(lease, '2027-01-01')).toBe(false);
   });
 });

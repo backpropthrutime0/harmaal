@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { ReactElement } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Property } from '../../data/types';
+import { isLeaseActive } from '../compute';
 import { AXIS_TICK, GRID_STROKE, HARMAAL } from '../theme';
 import { ChartCard } from './ChartCard';
 import { donut } from './builders';
@@ -9,20 +10,23 @@ import { CountTooltip } from './primitives';
 
 export function OccupancyCharts({
   properties,
+  refDate,
   isMobile,
 }: {
   /** Already scoped to the selected property (or all). */
   properties: Property[];
+  /** Point-in-time date ('YYYY-MM-DD') at which to count active leases. */
+  refDate: string;
   isMobile: boolean;
 }): ReactElement {
   const rows = useMemo(
     () =>
       properties.map((p) => {
-        const occupied = Math.min(p.tenants.length, p.units);
+        const occupied = Math.min(p.tenants.filter((t) => isLeaseActive(t, refDate)).length, p.units);
         const vacant = Math.max(0, p.units - occupied);
         return { name: p.address, occupied, vacant, rate: p.units ? (occupied / p.units) * 100 : 0 };
       }),
-    [properties],
+    [properties, refDate],
   );
 
   const portfolio = useMemo(() => {
@@ -42,7 +46,7 @@ export function OccupancyCharts({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
       <ChartCard
         title="Occupancy by property"
-        subtitle="Occupied vs vacant units"
+        subtitle={`Occupied vs vacant units (as of ${refDate})`}
         full
         empty={noData}
       >
@@ -63,7 +67,11 @@ export function OccupancyCharts({
         </BarChart>
       </ChartCard>
 
-      <ChartCard title="Portfolio occupancy" subtitle="All units, occupied vs vacant" empty={portfolioEmpty}>
+      <ChartCard
+        title="Portfolio occupancy"
+        subtitle={`All units, occupied vs vacant (as of ${refDate})`}
+        empty={portfolioEmpty}
+      >
         {donut({
           data: portfolio,
           tooltip: <CountTooltip />,
