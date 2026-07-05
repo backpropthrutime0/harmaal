@@ -3,7 +3,7 @@
  * module. Everything here is deterministic and unit-testable — no React, no
  * data fetching. Charts derive their row arrays from these functions.
  */
-import type { ChargeRow, WorkOrder } from '../data/types';
+import type { ChargeRow, Expense, WorkOrder } from '../data/types';
 
 // --------------------------------------------------------------------------
 // Period & date helpers
@@ -418,4 +418,63 @@ export function leaseExpiryByMonth(
     if (cur !== undefined) counts.set(p, cur + 1);
   }
   return keys.map((k) => ({ period: k, count: counts.get(k) ?? 0 }));
+}
+
+// --------------------------------------------------------------------------
+// Domain: cash-drawer reconciliation (client-side mirror of /finance/monthly)
+// --------------------------------------------------------------------------
+
+export interface CashMonth {
+  period: string;
+  cashCollected: number;
+  cashDeposited: number;
+  cashSpent: number;
+  cashOnHand: number;
+  undepositedCount: number;
+}
+
+/**
+ * Per-period cash-drawer series, computed from already-loaded rows so it honours
+ * the active property/tenant filters (unlike the portfolio-wide `/finance/monthly`
+ * endpoint). Mirrors that endpoint's formula exactly:
+ *   cashCollected = paid, method='cash' charges
+ *   cashDeposited = of those, the deposited ones
+ *   cashSpent     = cash-paid expenses + cash-settled completed work-order costs
+ *   cashOnHand    = cashCollected − cashDeposited − cashSpent (per period, not cumulative)
+ * Periods are the union of all input periods, ascending.
+ */
+export function monthlyCashSeries(
+  charges: Pick<ChargeRow, 'amount' | 'period' | 'status' | 'method' | 'deposited'>[],
+  expenses: Pick<Expense, 'amount' | 'period' | 'paid_in_cash'>[],
+  workOrders: Pick<WorkOrder, 'cost' | 'paid_in_cash' | 'completed_at'>[],
+): CashMonth[] {
+  const periods = new Set<string>();
+  for (const c of charges) if (c.period) periods.add(c.period);
+  for (const e of expenses) if (e.period) periods.add(e.period);
+  for (const w of workOrders) if (w.completed_at) periods.add(periodOf(w.completed_at));
+
+  return [...periods]
+    .sort()
+    .map((period) => {
+      const cashPaid = charges.filter(
+        (c) => c.period === period && c.status === 'paid' && (c.method ?? '').toLowerCase() === 'cash',
+      );
+      const cashCollected = cashPaid.reduce((s, c) => s + c.amount, 0);
+      const cashDeposited = cashPaid.filter((c) => c.deposited).reduce((s, c) => s + c.amount, 0);
+      const manualCash = expenses
+        .filter((e) => e.period === period && e.paid_in_cash)
+        .reduce((s, e) => s + e.amount, 0);
+      const woCash = workOrders
+        .filter((w) => w.cost && w.paid_in_cash && w.completed_at && periodOf(w.completed_at) === period)
+        .reduce((s, w) => s + (w.cost ?? 0), 0);
+      const cashSpent = manualCash + woCash;
+      return {
+        period,
+        cashCollected,
+        cashDeposited,
+        cashSpent,
+        cashOnHand: cashCollected - cashDeposited - cashSpent,
+        undepositedCount: cashPaid.filter((c) => !c.deposited).length,
+      };
+    });
 }

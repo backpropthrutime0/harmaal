@@ -13,9 +13,9 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { ChargeRow, Expense, MonthlyFinancials, WorkOrder } from '../../data/types';
+import type { ChargeRow, Expense, WorkOrder } from '../../data/types';
 import { EXPENSE_CATEGORIES } from '../../data/types';
-import { periodOf, sumBy } from '../compute';
+import { periodOf, sumBy, type CashMonth } from '../compute';
 import { AXIS_TICK, CATEGORY_COLORS, colorFor, compactMoney, GRID_STROKE, HARMAAL, shortPeriod } from '../theme';
 import { ChartCard } from './ChartCard';
 import { axisInterval } from './axis';
@@ -26,15 +26,15 @@ export function ProfitCharts({
   charges,
   expenses,
   workOrders,
-  monthly,
+  cash,
   isMobile,
   onSelectProperty,
 }: {
   charges: ChargeRow[];
   expenses: Expense[];
   workOrders: WorkOrder[];
-  /** Already clipped to the date range (portfolio-wide — ignores property/tenant). */
-  monthly: MonthlyFinancials[];
+  /** Per-period cash-drawer series (already filtered to property/tenant/range). */
+  cash: CashMonth[];
   isMobile: boolean;
   onSelectProperty?: (address: string) => void;
 }): ReactElement {
@@ -99,13 +99,9 @@ export function ProfitCharts({
       });
   }, [expenses, categories]);
 
-  const cash = useMemo(
-    () =>
-      monthly
-        .slice()
-        .sort((a, b) => (a.period < b.period ? -1 : 1))
-        .map((m) => ({ period: m.period, cash_on_hand: m.cash_on_hand })),
-    [monthly],
+  const cashOnHand = useMemo(
+    () => cash.map((m) => ({ period: m.period, cash_on_hand: m.cashOnHand })),
+    [cash],
   );
 
   // Revenue vs total costs per property (expenses + repair-job costs — the same
@@ -130,12 +126,8 @@ export function ProfitCharts({
   }, [charges, expenses, workOrders]);
 
   const undeposited = useMemo(
-    () =>
-      monthly
-        .slice()
-        .sort((a, b) => (a.period < b.period ? -1 : 1))
-        .map((m) => ({ period: m.period, undeposited: Math.max(0, m.cash_collected - m.cash_deposited) })),
-    [monthly],
+    () => cash.map((m) => ({ period: m.period, undeposited: Math.max(0, m.cashCollected - m.cashDeposited) })),
+    [cash],
   );
 
   const interval = axisInterval(trend.length, isMobile);
@@ -204,7 +196,7 @@ export function ProfitCharts({
 
       <ChartCard
         title="Undeposited cash"
-        subtitle="Cash collected but not yet banked — portfolio-wide"
+        subtitle="Cash collected but not yet banked"
         empty={undeposited.length === 0}
         exportRows={{ filename: 'undeposited-cash', rows: undeposited }}
       >
@@ -227,17 +219,17 @@ export function ProfitCharts({
 
       <ChartCard
         title="Cash on hand"
-        subtitle="Portfolio-wide — ignores property/tenant filters"
-        empty={cash.length === 0}
-        exportRows={{ filename: 'cash-on-hand', rows: cash }}
+        subtitle="Undeposited cash minus cash spent, per month"
+        empty={cashOnHand.length === 0}
+        exportRows={{ filename: 'cash-on-hand', rows: cashOnHand }}
       >
-        <AreaChart data={cash} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+        <AreaChart data={cashOnHand} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
           <XAxis
             dataKey="period"
             tick={AXIS_TICK}
             tickFormatter={shortPeriod}
-            interval={axisInterval(cash.length, isMobile)}
+            interval={axisInterval(cashOnHand.length, isMobile)}
             angle={isMobile ? -45 : 0}
             textAnchor={isMobile ? 'end' : 'middle'}
             height={isMobile ? 48 : 30}

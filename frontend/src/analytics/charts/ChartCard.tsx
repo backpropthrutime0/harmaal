@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { ResponsiveContainer } from 'recharts';
 import { Card } from '../../components/ui';
 import { useIsMobile } from '../../hooks/useIsMobile';
-import { exportCsv } from '../export';
+import { exportCsv, exportPng } from '../export';
 import { DataTable, EmptyChart } from './primitives';
 
 /**
@@ -45,9 +45,16 @@ export function ChartCard({
 }): ReactElement {
   const isMobile = useIsMobile();
   const [showTable, setShowTable] = useState(false);
+  const chartRef = useRef<HTMLDivElement>(null);
   const h = height ?? (isMobile ? 220 : 280);
   const hasData = !!exportRows && exportRows.rows.length > 0;
+  const chartVisible = !empty && !showTable;
   const ariaLabel = subtitle ? `${title}. ${subtitle}` : title;
+
+  const downloadPng = () => {
+    const svg = chartRef.current?.querySelector('svg');
+    if (svg) exportPng(exportRows?.filename ?? title, svg as SVGSVGElement);
+  };
 
   return (
     <Card className={`p-4 sm:p-5 ${full ? 'lg:col-span-2' : ''}`}>
@@ -65,6 +72,15 @@ export function ChartCard({
               title={showTable ? 'Show chart' : 'View as table'}
             >
               {showTable ? '◫ Chart' : '⊞ Table'}
+            </button>
+          )}
+          {chartVisible && (
+            <button
+              onClick={downloadPng}
+              className="text-xs font-semibold text-slate-400 hover:text-harmaal-blue transition"
+              title="Download as PNG"
+            >
+              ⤓ PNG
             </button>
           )}
           {hasData && (
@@ -85,7 +101,7 @@ export function ChartCard({
         ) : showTable && exportRows ? (
           <DataTable rows={exportRows.rows} />
         ) : (
-          <div role="img" aria-label={ariaLabel} style={{ width: '100%', height: '100%' }}>
+          <div ref={chartRef} role="img" aria-label={ariaLabel} style={{ width: '100%', height: '100%' }}>
             <ResponsiveContainer width="100%" height="100%">
               {children}
             </ResponsiveContainer>

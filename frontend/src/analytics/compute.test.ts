@@ -10,6 +10,7 @@ import {
   isLeaseActive,
   kde,
   leaseExpiryByMonth,
+  monthlyCashSeries,
   perStaffOnTime,
   periodOf,
   silvermanBandwidth,
@@ -519,5 +520,34 @@ describe('leaseExpiryByMonth', () => {
       { period: '2027-01', count: 1 },
     ]);
     expect(leaseExpiryByMonth([], '2026-01', 0)).toEqual([]);
+  });
+});
+
+describe('monthlyCashSeries', () => {
+  it('mirrors the cash-drawer formula and excludes non-cash / unpaid rows', () => {
+    const charges = [
+      charge({ period: '2026-01', status: 'paid', method: 'cash', amount: 100, deposited: false }),
+      charge({ period: '2026-01', status: 'paid', method: 'cash', amount: 50, deposited: true }),
+      charge({ period: '2026-01', status: 'paid', method: 'card', amount: 999, deposited: false }), // not cash
+      charge({ period: '2026-01', status: 'overdue', method: 'cash', amount: 999, deposited: false }), // not paid
+    ];
+    const expenses = [
+      { amount: 30, period: '2026-01', paid_in_cash: true },
+      { amount: 70, period: '2026-01', paid_in_cash: false }, // bank/card — ignored
+    ];
+    const wos = [
+      wo({ completed_at: '2026-01-10', cost: 20, paid_in_cash: true }),
+      wo({ completed_at: '2026-01-10', cost: 40, paid_in_cash: false }), // ignored
+    ];
+    const [m] = monthlyCashSeries(charges, expenses, wos);
+    expect(m.period).toBe('2026-01');
+    expect(m.cashCollected).toBe(150); // 100 + 50
+    expect(m.cashDeposited).toBe(50); // the deposited cash charge
+    expect(m.cashSpent).toBe(50); // 30 cash expense + 20 cash WO
+    expect(m.cashOnHand).toBe(50); // 150 - 50 - 50
+    expect(m.undepositedCount).toBe(1); // the 100 cash charge not deposited
+  });
+  it('returns [] for no rows', () => {
+    expect(monthlyCashSeries([], [], [])).toEqual([]);
   });
 });

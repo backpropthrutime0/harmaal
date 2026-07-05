@@ -1,19 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import {
-  getCharges,
-  getMonthlyFinancials,
-  getProperties,
-  getTenants,
-  listExpenses,
-  listWorkOrders,
-} from '../data/api';
-import type { ChargeRow, Expense, MonthlyFinancials, Property, Tenant, WorkOrder } from '../data/types';
+import { getCharges, getProperties, getTenants, listExpenses, listWorkOrders } from '../data/api';
+import type { ChargeRow, Expense, Property, Tenant, WorkOrder } from '../data/types';
 import { Loading, PageHeader, StatCard } from '../components/ui';
 import { money } from '../format';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { isLeaseActive } from './compute';
+import { isLeaseActive, monthlyCashSeries } from './compute';
 import {
   filterCharges,
   filterExpenses,
@@ -46,7 +39,6 @@ interface RawData {
   expenses: Expense[];
   properties: Property[];
   tenants: Tenant[];
-  monthly: MonthlyFinancials[];
 }
 
 export default function Analytics(): ReactElement {
@@ -76,10 +68,9 @@ export default function Analytics(): ReactElement {
       listExpenses(),
       getProperties(),
       getTenants(),
-      getMonthlyFinancials(60),
     ]).then((r) => {
       if (!alive) return;
-      const names = ['charges', 'work orders', 'expenses', 'properties', 'tenants', 'financials'];
+      const names = ['charges', 'work orders', 'expenses', 'properties', 'tenants'];
       const failedNames = names.filter((_, i) => r[i].status === 'rejected');
       if (failedNames.length === names.length) {
         setError('Could not load analytics data. Please try again.');
@@ -92,7 +83,6 @@ export default function Analytics(): ReactElement {
         expenses: r[2].status === 'fulfilled' ? r[2].value : [],
         properties: r[3].status === 'fulfilled' ? r[3].value : [],
         tenants: r[4].status === 'fulfilled' ? r[4].value : [],
-        monthly: r[5].status === 'fulfilled' ? r[5].value : [],
       });
     });
     return () => {
@@ -117,7 +107,9 @@ export default function Analytics(): ReactElement {
     const fCharges = filterCharges(data.charges, filters, filters.propertyId);
     const fWorkOrders = filterWorkOrders(data.workOrders, filters, filters.propertyId);
     const fExpenses = filterExpenses(data.expenses, filters, filters.propertyId);
-    const fMonthly = data.monthly.filter((m) => m.period >= filters.from && m.period <= filters.to);
+    // Cash-drawer series computed from the filtered rows → now honours the
+    // property/tenant filters (was portfolio-wide via /finance/monthly).
+    const cashSeries = monthlyCashSeries(fCharges, fExpenses, fWorkOrders);
     let scopedProperties =
       filters.propertyId === 'all'
         ? data.properties
@@ -133,7 +125,7 @@ export default function Analytics(): ReactElement {
       const selected = data.tenants.find((t) => t.id === filters.tenantId);
       if (selected) scopedProperties = scopedProperties.filter((p) => p.id === selected.property_id);
     }
-    return { fCharges, fWorkOrders, fExpenses, fMonthly, scopedProperties, scopedTenants };
+    return { fCharges, fWorkOrders, fExpenses, cashSeries, scopedProperties, scopedTenants };
   }, [data, filters]);
 
   const kpis = useMemo(() => {
@@ -244,7 +236,7 @@ export default function Analytics(): ReactElement {
           charges={base.fCharges}
           expenses={base.fExpenses}
           workOrders={base.fWorkOrders}
-          monthly={base.fMonthly}
+          cash={base.cashSeries}
           isMobile={isMobile}
           onSelectProperty={selectProperty}
         />
