@@ -12,7 +12,7 @@ import {
 } from '../data/api';
 import type { ChargeRow, Expense, MonthlyFinancials as MF, Property, WorkOrder } from '../data/types';
 import { EXPENSE_CATEGORIES } from '../data/types';
-import { Badge, Card, EmptyState, Loading, Modal, money, money2 } from '../components/ui';
+import { Badge, Card, EmptyState, Loading, Modal, money, money2, TableScroll } from '../components/ui';
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
@@ -181,7 +181,8 @@ function MonthDetail({
       {cashPaid.length === 0 ? (
         <p className="text-slate-400 text-sm mb-6">No cash rent collected this month.</p>
       ) : (
-        <table className="w-full mb-6">
+        <TableScroll minWidth="min-w-[480px]" className="mb-6">
+        <table className="w-full">
           <thead>
             <tr className="border-b border-slate-100">
               <Th>Tenant</Th>
@@ -214,6 +215,7 @@ function MonthDetail({
             ))}
           </tbody>
         </table>
+        </TableScroll>
       )}
 
       {/* expenses */}
@@ -357,6 +359,7 @@ function ExpensesSection({
       {expenses.length === 0 && workOrders.length === 0 ? (
         <p className="text-slate-400 text-sm">No expenses recorded for {period}.</p>
       ) : (
+        <TableScroll minWidth="min-w-[560px]">
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-100">
@@ -413,6 +416,7 @@ function ExpensesSection({
             ))}
           </tbody>
         </table>
+        </TableScroll>
       )}
     </div>
   );

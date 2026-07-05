@@ -1,5 +1,7 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
+import { Loading } from './components/ui';
 import LandingPage from './LandingPage';
 import LoginPage from './LoginPage';
 import Register from './Register';
@@ -17,6 +19,9 @@ import People from './People';
 import TenantPortal from './TenantPortal';
 import TenantPayments from './TenantPayments';
 import TenantMaintenance from './TenantMaintenance';
+
+// Lazy-loaded so recharts (~100kb) only ships when a view_business user opens it.
+const Analytics = lazy(() => import('./analytics'));
 
 export default function App() {
   return (
@@ -38,6 +43,20 @@ export default function App() {
 
         {/* Financials / rent roll (manage_tenants) */}
         <Route path="/financials" element={<PrivateRoute permission="manage_tenants"><Layout><Financials /></Layout></PrivateRoute>} />
+
+        {/* Analytics / business intelligence (view_business: admin, manager, owner) */}
+        <Route
+          path="/analytics"
+          element={
+            <PrivateRoute permission="view_business">
+              <Layout>
+                <Suspense fallback={<Loading label="Loading analytics…" />}>
+                  <Analytics />
+                </Suspense>
+              </Layout>
+            </PrivateRoute>
+          }
+        />
 
         {/* Work orders — list for staff+maintenance; detail accessible to any involved party */}
         <Route path="/work-orders" element={<PrivateRoute permission="manage_maintenance"><Layout><WorkOrders /></Layout></PrivateRoute>} />

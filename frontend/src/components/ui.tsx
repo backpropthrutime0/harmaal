@@ -19,12 +19,35 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between mb-8">
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
-        {subtitle && <p className="text-slate-500 mt-1">{subtitle}</p>}
+    <div className="flex flex-col gap-4 mb-6 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">{title}</h1>
+        {subtitle && <p className="text-slate-500 mt-1 text-sm sm:text-base">{subtitle}</p>}
       </div>
-      {actions}
+      {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
+    </div>
+  );
+}
+
+/**
+ * Horizontal-scroll container for wide data tables. On phones the table keeps
+ * its natural column widths and scrolls sideways (with iOS momentum) instead of
+ * squishing or bursting the viewport. Pass `minWidth` for tables with many
+ * columns so they don't collapse into an unreadable width.
+ */
+export function TableScroll({
+  children,
+  minWidth,
+  className = '',
+}: {
+  children: ReactNode;
+  /** e.g. "min-w-[640px]" — applied to an inner wrapper so the table can't shrink below it. */
+  minWidth?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`overflow-x-auto ${className}`}>
+      {minWidth ? <div className={minWidth}>{children}</div> : children}
     </div>
   );
 }
@@ -69,13 +92,13 @@ export function StatCard({
             }
           : undefined
       }
-      className={`bg-white p-6 rounded-2xl shadow-sm border border-slate-100 ${interactive}`}
+      className={`bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 ${interactive}`}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</div>
         {onClick && <span className="text-slate-300 text-base leading-none">→</span>}
       </div>
-      <div className={`text-3xl font-bold mt-2 ${toneColor}`}>{value}</div>
+      <div className={`text-2xl sm:text-3xl font-bold mt-2 ${toneColor}`}>{value}</div>
       {sub && <div className="text-sm text-slate-400 mt-1">{sub}</div>}
     </div>
   );
@@ -101,14 +124,19 @@ export function Modal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 sm:items-start sm:overflow-y-auto sm:p-4"
       onClick={onClose}
     >
+      {/*
+       * Mobile: full-screen sheet (edge-to-edge, its own scroll) so the content
+       * gets the whole viewport. sm+: a centered, rounded dialog. Mirrors the
+       * `fullscreen="lg-down"` pattern from the avis_tools template.
+       */}
       <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-4xl my-12"
+        className="flex w-full max-w-4xl flex-col bg-white shadow-xl sm:my-8 sm:h-auto sm:max-h-[calc(100vh-4rem)] sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between p-6 border-b border-slate-100">
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 p-4 sm:p-6 pt-safe">
           <div className="flex items-center gap-3 min-w-0">
             {onBack && (
               <button
@@ -119,19 +147,19 @@ export function Modal({
               </button>
             )}
             <div className="min-w-0">
-              <h2 className="text-xl font-bold text-slate-900 truncate">{title}</h2>
-              {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 truncate">{title}</h2>
+              {subtitle && <p className="text-sm text-slate-500 mt-0.5 truncate">{subtitle}</p>}
             </div>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="text-slate-400 hover:text-slate-700 text-2xl leading-none shrink-0 ml-4"
+            className="text-slate-400 hover:text-slate-700 text-3xl leading-none shrink-0 -mt-1"
           >
             ×
           </button>
         </div>
-        <div className="p-6 max-h-[70vh] overflow-y-auto">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 pb-safe">{children}</div>
       </div>
     </div>
   );

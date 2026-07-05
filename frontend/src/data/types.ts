@@ -42,6 +42,7 @@ export interface ChargeRow {
   tenant_id: number;
   tenant_name: string;
   unit_label?: string | null;
+  property_id?: number | null;
   property_address?: string | null;
   amount: number;
   period: string;

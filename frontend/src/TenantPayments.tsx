@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { downloadMyInvoice, getMyCharges } from './data/api';
 import type { Charge } from './data/types';
-import { Badge, Card, EmptyState, Loading, PageHeader, money } from './components/ui';
+import { Badge, Card, EmptyState, Loading, PageHeader, TableScroll, money } from './components/ui';
 
 export default function TenantPayments() {
   const [charges, setCharges] = useState<Charge[] | null>(null);
@@ -13,12 +13,13 @@ export default function TenantPayments() {
   if (!charges) return <Loading />;
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <PageHeader title="Payments" subtitle="Your monthly rent ledger." />
       <Card>
         {charges.length === 0 ? (
           <EmptyState>No charges on file.</EmptyState>
         ) : (
+          <TableScroll minWidth="min-w-[680px]">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-slate-400 border-b border-slate-100">
@@ -52,6 +53,7 @@ export default function TenantPayments() {
               ))}
             </tbody>
           </table>
+          </TableScroll>
         )}
       </Card>
       <p className="text-xs text-slate-400 mt-4">

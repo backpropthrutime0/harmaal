@@ -84,6 +84,17 @@ WO_TEMPLATES = [
 
 PRIORITIES = ["low", "medium", "medium", "high", "emergency"]
 
+# History depth. 5 years of rent ledger + work-order spend so the dashboard
+# breakdowns (this-month / this-year / all-time by property/tenant) have real data.
+YEARS = 5
+MONTHS = YEARS * 12
+NUM_WORK_ORDERS = 150
+# The manager reconciles the cash drawer monthly: older months are fully banked,
+# only the most recent months still hold undeposited cash. Cash-settled repairs
+# and expenses only happen within this window, so `cash_on_hand` never goes
+# negative (finance.py: cash_on_hand = collected - deposited - spent).
+CASH_ON_HAND_MONTHS = 2
+
 
 def months_back(n: int) -> list[tuple[int, int]]:
     now = datetime.now(UTC)
@@ -164,8 +175,10 @@ async def build() -> None:
         await session.flush()
 
         # Tenants (each gets a portal user) + rent ledger
-        periods = months_back(12)
+        periods = months_back(MONTHS)
         now = datetime.now(UTC)
+        # Months that still hold undeposited cash — the only ones that carry cash spend.
+        cash_window = {f"{y}-{m:02d}" for y, m in periods[-CASH_ON_HAND_MONTHS:]}
         tenants: list[Tenant] = []
         for i, (name, email) in enumerate(TENANTS):
             prop = props[i % len(props)]
@@ -188,7 +201,7 @@ async def build() -> None:
                 email=email.lower(),
                 rent_amount=rent,
                 lease_start_date=f"{periods[0][0]}-{periods[0][1]:02d}-01",
-                lease_end_date=f"{periods[0][0] + 1}-{periods[0][1]:02d}-01",
+                lease_end_date=f"{now.year + 1}-{now.month:02d}-01",
                 unit_label=unit,
                 property_id=prop.id,
                 user_id=t_user.id,
@@ -213,9 +226,9 @@ async def build() -> None:
                     status = "paid"
                     paid_date = f"{y}-{m:02d}-{random.randint(2, 9):02d}"
                     method = random.choice(["cash", "cash", "card", "transfer"])
-                    # Cash from older months is already banked; the two most recent
+                    # Cash from older months is already banked; the most recent
                     # cash payments sit "on hand" for the manager to check off.
-                    if method == "cash" and idx < len(periods) - 2:
+                    if method == "cash" and idx < len(periods) - CASH_ON_HAND_MONTHS:
                         deposited = True
                         deposited_date = f"{y}-{m:02d}-{random.randint(10, 27):02d}"
                 session.add(
@@ -243,35 +256,50 @@ async def build() -> None:
             ("Plumbing supplies", "maintenance"),
             ("Pest control", "maintenance"),
         ]
-        for y, m in periods[-4:]:  # last four months
+        for y, m in periods[-18:]:  # last 18 months of operating expenses
+            period_str = f"{y}-{m:02d}"
             for _ in range(random.randint(2, 4)):
                 desc, cat = random.choice(exp_templates)
                 prop = random.choice(props)
+                # Only the current cash-drawer window pays cash; older bills were banked.
+                paid_in_cash = period_str in cash_window and random.random() < 0.6
                 session.add(
                     Expense(
                         description=desc,
                         amount=float(random.randint(60, 480)),
                         category=cat,
-                        period=f"{y}-{m:02d}",
+                        period=period_str,
                         spent_date=f"{y}-{m:02d}-{random.randint(3, 26):02d}",
-                        paid_in_cash=random.random() < 0.6,
+                        paid_in_cash=paid_in_cash,
                         property_id=prop.id,
                         created_by=manager.id,
                     )
                 )
         await session.commit()
 
-        # Work orders + threads
-        statuses_plan = (
-            ["completed"] * 9 + ["in_progress"] * 4 + ["assigned"] * 3 + ["open"] * 3 + ["cancelled"] * 1
-        )
-        random.shuffle(statuses_plan)
-        for idx, (title, category, desc) in enumerate(WO_TEMPLATES):
-            tenant = tenants[idx % len(tenants)]
-            assignee = maint_users[idx % len(maint_users)]
-            wo_status = statuses_plan[idx]
+        # Work orders + threads — ~150 spread across the full 5-year window so the
+        # maintenance-spend breakdown varies by month, year, property, and tenant.
+        for _ in range(NUM_WORK_ORDERS):
+            title, category, desc = random.choice(WO_TEMPLATES)
+            tenant = random.choice(tenants)
+            assignee = random.choice(maint_users)
             priority = random.choice(PRIORITIES)
-            created = now - timedelta(days=random.randint(10, 330))
+
+            # Pick a month in the window (0 = oldest, newest last); bias slightly recent.
+            p_idx = min(len(periods) - 1, int(random.triangular(0, len(periods) - 1, len(periods) - 1)))
+            y, m = periods[p_idx]
+            created = datetime(y, m, random.randint(1, 27), random.randint(8, 18), tzinfo=UTC)
+            if created > now:
+                created = now - timedelta(days=random.randint(1, 20))
+
+            # Recent jobs show a live mix of statuses; older jobs are resolved.
+            recent = p_idx >= len(periods) - 4
+            if recent:
+                wo_status = random.choice(
+                    ["completed", "completed", "in_progress", "assigned", "open", "open"]
+                )
+            else:
+                wo_status = random.choices(["completed", "cancelled"], weights=[92, 8])[0]
             wo = WorkOrder(
                 property_id=tenant.property_id,
                 tenant_id=tenant.id,
@@ -287,10 +315,13 @@ async def build() -> None:
             if wo_status in ("assigned", "in_progress", "completed"):
                 wo.assigned_to = assignee.id
             if wo_status == "completed":
-                done = created + timedelta(days=random.randint(1, 6))
+                done = min(created + timedelta(days=random.randint(1, 6)), now)
                 wo.completed_at = done.isoformat()
-                wo.cost = float(random.randint(80, 600))
-                wo.paid_in_cash = random.random() < 0.5  # mix of cash vs bank/card repairs
+                # Emergencies/high priority cost more; keeps yearly spend uneven.
+                base = 900 if priority == "emergency" else 600 if priority == "high" else 400
+                wo.cost = float(random.randint(80, base))
+                # Only recent repairs draw from the cash drawer; older ones were banked.
+                wo.paid_in_cash = done.isoformat()[:7] in cash_window and random.random() < 0.5
                 wo.scheduled_for = (created + timedelta(days=1)).date().isoformat()
             session.add(wo)
             await session.flush()

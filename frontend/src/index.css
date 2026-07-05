@@ -1,6 +1,120 @@
 @import "tailwindcss";
 
+/*
+ * Tailwind v4 loads its theme from CSS, not from tailwind.config.js. The custom
+ * "harmaal" palette must be declared here (as @theme tokens) so utilities like
+ * bg-harmaal-blue / text-harmaal-gold are actually generated. Without this the
+ * sidebar background renders transparent and its white text (e.g. "Sign Out")
+ * disappears against the light page background.
+ */
+@theme {
+  --color-harmaal-sand: #fdfbf7; /* Background */
+  --color-harmaal-earth: #a67c52; /* Secondary / accents */
+  --color-harmaal-blue: #2a5c82; /* Primary / action */
+  --color-harmaal-gold: #c5a059; /* Highlights / buttons */
+
+  --font-sans: "Inter", system-ui, sans-serif;
+}
+
 body {
   background-color: #f9fafb; /* manual fallback for bg-gray-50 just in case */
   color: #111827;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Small-device / touch optimizations
+ * ---------------------------------------------------------------------------
+ * These are global, framework-level fixes that complement the Tailwind
+ * responsive utilities used per-component. They make the app behave like a
+ * native mobile app on phones/tablets (iOS Safari, Android Chrome, iPadOS).
+ */
+
+/* Never let a stray wide element (a table, a long token) burst the viewport
+ * and introduce a horizontal rubber-band scroll on the whole page. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Respect iOS text sizing rules; stop Safari auto-inflating font sizes in
+ * landscape, which throws off our carefully-tuned responsive type scale. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Momentum scrolling for any horizontally-scrollable region (data tables). */
+.overflow-x-auto,
+.overflow-auto,
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Kill the grey tap flash on iOS; we provide our own hover/active states. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/*
+ * Touch-target floor. Below the `md` breakpoint (Tailwind default 768px, i.e.
+ * phones and portrait tablets) every interactive control gets a comfortable
+ * ~44px hit area per Apple HIG / Material guidelines. Utility classes on the
+ * elements still win for anything that opts out explicitly.
+ */
+@media (max-width: 767px) {
+  button,
+  a[role='button'],
+  [role='button'],
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea,
+  .tap-target {
+    min-height: 44px;
+  }
+
+  /* Inputs at <16px font trigger iOS auto-zoom on focus — force >=16px. */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
+  }
+}
+
+/*
+ * Safe-area helpers for notched / home-indicator devices (iPhone X+). Paired
+ * with `viewport-fit=cover` in index.html. Applied to the app shell so fixed
+ * chrome (sidebar, top bar, bottom sheets) clears the notch and home bar.
+ */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+.min-h-screen-safe {
+  min-height: 100vh;
+  min-height: 100dvh; /* dynamic viewport height — accounts for mobile URL bar */
+}
+
+/* Toast entrance used by Properties.tsx (was referenced but never defined). */
+@keyframes fade-in-down {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-down {
+  animation: fade-in-down 0.25s ease-out;
 }

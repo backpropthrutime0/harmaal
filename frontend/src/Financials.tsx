@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { downloadInvoice, getCharges, recordPayment } from './data/api';
 import type { ChargeRow } from './data/types';
-import { Badge, Card, EmptyState, Loading, PageHeader, money } from './components/ui';
+import { Badge, Card, EmptyState, Loading, PageHeader, TableScroll, money } from './components/ui';
 
 const FILTERS = ['all', 'overdue', 'pending', 'paid'] as const;
 type Filter = (typeof FILTERS)[number];
@@ -43,10 +43,10 @@ export default function Financials() {
   if (!charges) return <Loading />;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <PageHeader title="Rent Roll" subtitle="Track monthly charges, follow up on overdue balances, and record payments." />
 
-      <div className="grid grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6">
         <Card className="p-5">
           <div className="text-xs font-semibold text-slate-400 uppercase">Overdue</div>
           <div className="text-2xl font-bold text-red-600 mt-1">{money(totals.overdue)}</div>
@@ -61,7 +61,7 @@ export default function Financials() {
         </Card>
       </div>
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         {FILTERS.map((f) => (
           <button
             key={f}
@@ -79,6 +79,7 @@ export default function Financials() {
         {rows.length === 0 ? (
           <EmptyState>No {filter === 'all' ? '' : filter} charges.</EmptyState>
         ) : (
+          <TableScroll minWidth="min-w-[760px]">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-slate-400 border-b border-slate-100">
@@ -128,6 +129,7 @@ export default function Financials() {
               ))}
             </tbody>
           </table>
+          </TableScroll>
         )}
       </Card>
     </div>

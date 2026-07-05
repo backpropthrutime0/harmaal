@@ -61,6 +61,7 @@ async def rent_roll(
                 tenant_id=tenant.id,
                 tenant_name=tenant.name,
                 unit_label=tenant.unit_label,
+                property_id=prop.id,
                 property_address=prop.address,
                 amount=payment.amount,
                 period=payment.period,

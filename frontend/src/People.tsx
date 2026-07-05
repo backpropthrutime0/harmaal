@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createUser, listUsers, type AdminUserRow } from './data/api';
-import { Badge, Card, Loading, PageHeader } from './components/ui';
+import { Badge, Card, Loading, PageHeader, TableScroll } from './components/ui';
 
 const ROLES = ['manager', 'maintenance', 'admin', 'tenant'];
 
@@ -16,7 +16,7 @@ export default function People() {
   if (!users) return <Loading />;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-6xl mx-auto">
       <PageHeader
         title="People"
         subtitle="Staff and tenant accounts."
@@ -31,6 +31,7 @@ export default function People() {
       />
 
       <Card>
+        <TableScroll minWidth="min-w-[560px]">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-slate-400 border-b border-slate-100">
@@ -55,6 +56,7 @@ export default function People() {
             ))}
           </tbody>
         </table>
+        </TableScroll>
       </Card>
 
       {showAdd && <AddUserModal onClose={() => setShowAdd(false)} onCreated={load} />}

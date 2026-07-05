@@ -26,9 +26,41 @@ export default function TenantPortal() {
   const balance = charges.filter((c) => c.status !== 'paid').reduce((s, c) => s + c.amount, 0);
   const nextDue = charges.filter((c) => c.status !== 'paid').sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
 
+  // Backend derives "overdue" for unpaid charges past their due date.
+  const overdue = charges.filter((c) => c.status === 'overdue').sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const overdueTotal = overdue.reduce((s, c) => s + c.amount, 0);
+
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-4xl mx-auto">
       <PageHeader title={`Welcome back, ${lease.name}`} subtitle={`Unit ${lease.unit_label ?? ''}`} />
+
+      {overdue.length > 0 && (
+        <div
+          role="alert"
+          className="mb-8 rounded-2xl border-2 border-red-300 bg-red-50 p-6 shadow-sm"
+        >
+          <div className="flex items-start gap-4">
+            <div className="text-3xl leading-none" aria-hidden="true">
+              ⚠️
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-red-800">Your rent is overdue</h2>
+              <p className="mt-1 text-sm text-red-700">
+                You have {overdue.length} overdue {overdue.length === 1 ? 'charge' : 'charges'} totaling{' '}
+                <span className="font-bold">{money(overdueTotal)}</span>. The oldest was due on{' '}
+                <span className="font-semibold">{overdue[0].due_date}</span>. Please pay as soon as possible
+                to avoid late fees, or contact your property manager.
+              </p>
+              <Link
+                to="/portal/payments"
+                className="mt-4 inline-block rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700"
+              >
+                View balance &amp; pay →
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <StatCard label="Monthly Rent" value={money(lease.rent_amount)} />

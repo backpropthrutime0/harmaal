@@ -18,7 +18,7 @@ export default function AdminDashboard() {
     data.billed_this_month > 0 ? Math.round((data.collected_this_month / data.billed_this_month) * 100) : 0;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <PageHeader
         title="Owner Dashboard"
         subtitle="Portfolio-wide overview across all properties. Click any card for details."

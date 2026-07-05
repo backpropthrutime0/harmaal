@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getCharges, getProperties, getTenants, listWorkOrders } from '../data/api';
 import type { ChargeRow, Property, Tenant, WorkOrder } from '../data/types';
-import { Badge, Loading, Modal, money } from '../components/ui';
+import { Badge, Loading, Modal, TableScroll, money } from '../components/ui';
+import { ChargeTable, Row, Td, Th, WorkOrderTable } from './tables';
+import { BreakdownView } from './BreakdownView';
 
 /** Which admin stat card was clicked. */
 export type AdminMetric =
@@ -16,52 +18,18 @@ export type AdminMetric =
 
 const OPEN_WO = ['open', 'assigned', 'in_progress'];
 
-function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
-}
-function currentYear(): string {
-  return new Date().toISOString().slice(0, 4);
-}
-
 const TITLES: Record<AdminMetric, { title: string; subtitle: string }> = {
   properties: { title: 'Properties', subtitle: 'Every property in the portfolio — click one for details.' },
   occupancy: { title: 'Occupancy', subtitle: 'Occupied vs. total units per property.' },
   tenants: { title: 'Tenants', subtitle: 'All tenants — click one for lease and payment history.' },
-  billed: { title: 'Billed This Month', subtitle: `Charges billed for ${currentMonth()}.` },
-  collected: { title: 'Collected This Month', subtitle: `Payments received for ${currentMonth()}.` },
-  outstanding: { title: 'Outstanding', subtitle: 'All unpaid and overdue charges.' },
-  work_orders: { title: 'Open Work Orders', subtitle: 'Active maintenance jobs.' },
-  maintenance: { title: 'Maintenance Spend (YTD)', subtitle: `Completed work-order costs in ${currentYear()}.` },
+  billed: { title: 'Billed', subtitle: 'Charges billed — broken down by property or tenant.' },
+  collected: { title: 'Collected', subtitle: 'Payments received — broken down by property or tenant.' },
+  outstanding: { title: 'Outstanding', subtitle: 'Unpaid and overdue charges by property or tenant.' },
+  work_orders: { title: 'Open Work Orders', subtitle: 'Active maintenance jobs by property or tenant.' },
+  maintenance: { title: 'Maintenance Spend', subtitle: 'Completed work-order costs by period, property, and tenant.' },
 };
 
-// --- small table helpers -------------------------------------------------
-
-function Th({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return (
-    <th
-      className={`px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wide ${
-        right ? 'text-right' : 'text-left'
-      }`}
-    >
-      {children}
-    </th>
-  );
-}
-function Td({ children, right }: { children: React.ReactNode; right?: boolean }) {
-  return <td className={`px-3 py-2 text-sm text-slate-700 ${right ? 'text-right' : ''}`}>{children}</td>;
-}
-function Row({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
-  return (
-    <tr
-      onClick={onClick}
-      className={`border-b border-slate-50 last:border-0 ${
-        onClick ? 'cursor-pointer hover:bg-slate-50' : ''
-      }`}
-    >
-      {children}
-    </tr>
-  );
-}
+// --- small helpers -------------------------------------------------------
 
 function latestPayment(t: Tenant): ChargeRow['status'] | null {
   const sorted = [...t.payments].sort((a, b) => (a.due_date < b.due_date ? 1 : -1));
@@ -88,6 +56,7 @@ function PropertyDetail({ property, onTenant }: { property: Property; onTenant: 
       {property.tenants.length === 0 ? (
         <p className="text-slate-400 text-sm">No tenants yet.</p>
       ) : (
+        <TableScroll minWidth="min-w-[480px]">
         <table className="w-full">
           <thead>
             <tr>
@@ -108,6 +77,7 @@ function PropertyDetail({ property, onTenant }: { property: Property; onTenant: 
             ))}
           </tbody>
         </table>
+        </TableScroll>
       )}
     </div>
   );
@@ -132,6 +102,7 @@ function TenantDetail({ tenant }: { tenant: Tenant }) {
         </div>
       </div>
       <h3 className="font-bold text-slate-800 mb-2">Payment history</h3>
+      <TableScroll minWidth="min-w-[560px]">
       <table className="w-full">
         <thead>
           <tr>
@@ -156,6 +127,7 @@ function TenantDetail({ tenant }: { tenant: Tenant }) {
           ))}
         </tbody>
       </table>
+      </TableScroll>
     </div>
   );
 }
@@ -167,77 +139,6 @@ function Mini({ label, value, tone }: { label: string; value: React.ReactNode; t
       <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{label}</div>
       <div className={`text-xl font-bold mt-0.5 ${color}`}>{value}</div>
     </div>
-  );
-}
-
-function ChargeTable({ rows }: { rows: ChargeRow[] }) {
-  if (rows.length === 0) return <p className="text-slate-400 text-sm">Nothing here. 🎉</p>;
-  const total = rows.reduce((s, r) => s + r.amount, 0);
-  return (
-    <>
-      <table className="w-full">
-        <thead>
-          <tr>
-            <Th>Tenant</Th>
-            <Th>Unit · Property</Th>
-            <Th>Period</Th>
-            <Th right>Amount</Th>
-            <Th right>Status</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <Row key={r.id}>
-              <Td>{r.tenant_name}</Td>
-              <Td>
-                {(r.unit_label ?? '—') + ' · '}
-                <span className="text-slate-400">{r.property_address}</span>
-              </Td>
-              <Td>{r.period}</Td>
-              <Td right>{money(r.amount)}</Td>
-              <Td right>
-                <Badge value={r.status} />
-              </Td>
-            </Row>
-          ))}
-        </tbody>
-      </table>
-      <div className="mt-4 text-right text-sm font-bold text-slate-700">Total: {money(total)}</div>
-    </>
-  );
-}
-
-function WorkOrderTable({ rows, showCost }: { rows: WorkOrder[]; showCost?: boolean }) {
-  if (rows.length === 0) return <p className="text-slate-400 text-sm">Nothing here. 🎉</p>;
-  const total = rows.reduce((s, r) => s + (r.cost ?? 0), 0);
-  return (
-    <>
-      <table className="w-full">
-        <thead>
-          <tr>
-            <Th>Job</Th>
-            <Th>Property</Th>
-            <Th>Priority</Th>
-            <Th right>{showCost ? 'Cost' : 'Status'}</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((w) => (
-            <Row key={w.id}>
-              <Td>{w.title}</Td>
-              <Td>
-                <span className="text-slate-400">{w.property_address}</span>
-              </Td>
-              <Td>
-                <Badge value={w.priority} />
-              </Td>
-              <Td right>{showCost ? money(w.cost) : <Badge value={w.status} />}</Td>
-            </Row>
-          ))}
-        </tbody>
-      </table>
-      {showCost && <div className="mt-4 text-right text-sm font-bold text-slate-700">Total: {money(total)}</div>}
-    </>
   );
 }
 
@@ -263,8 +164,6 @@ export function AdminDetailModal({ metric, onClose }: { metric: AdminMetric | nu
   useEffect(() => {
     if (!metric) return;
     setLoading(true);
-    const month = currentMonth();
-    const year = currentYear();
     const load = async () => {
       switch (metric) {
         case 'properties':
@@ -275,10 +174,11 @@ export function AdminDetailModal({ metric, onClose }: { metric: AdminMetric | nu
           setTenants(await getTenants());
           break;
         case 'billed':
-          setCharges(await getCharges({ period: month }));
+          // All charges; the breakdown's period toggle slices to month/year.
+          setCharges(await getCharges());
           break;
         case 'collected':
-          setCharges(await getCharges({ period: month, status: 'paid' }));
+          setCharges(await getCharges({ status: 'paid' }));
           break;
         case 'outstanding':
           setCharges((await getCharges()).filter((c) => c.status !== 'paid'));
@@ -287,10 +187,9 @@ export function AdminDetailModal({ metric, onClose }: { metric: AdminMetric | nu
           setWorkOrders((await listWorkOrders()).filter((w) => OPEN_WO.includes(w.status)));
           break;
         case 'maintenance':
+          // All completed, costed work orders; period toggle handles YTD/monthly.
           setWorkOrders(
-            (await listWorkOrders()).filter(
-              (w) => w.cost && w.completed_at && w.completed_at.startsWith(year),
-            ),
+            (await listWorkOrders()).filter((w) => w.cost && w.completed_at),
           );
           break;
       }
@@ -324,6 +223,7 @@ export function AdminDetailModal({ metric, onClose }: { metric: AdminMetric | nu
       case 'occupancy':
         if (!properties) return <Loading />;
         return (
+          <TableScroll minWidth="min-w-[480px]">
           <table className="w-full">
             <thead>
               <tr>
@@ -344,10 +244,12 @@ export function AdminDetailModal({ metric, onClose }: { metric: AdminMetric | nu
               ))}
             </tbody>
           </table>
+          </TableScroll>
         );
       case 'tenants':
         if (!tenants) return <Loading />;
         return (
+          <TableScroll minWidth="min-w-[480px]">
           <table className="w-full">
             <thead>
               <tr>
@@ -368,15 +270,55 @@ export function AdminDetailModal({ metric, onClose }: { metric: AdminMetric | nu
               ))}
             </tbody>
           </table>
+          </TableScroll>
         );
       case 'billed':
       case 'collected':
       case 'outstanding':
-        return charges ? <ChargeTable rows={charges} /> : <Loading />;
+        if (!charges) return <Loading />;
+        return (
+          <BreakdownView
+            rows={charges}
+            getDate={(c) => c.period}
+            getAmount={(c) => c.amount}
+            getProperty={(c) => c.property_address ?? ''}
+            getTenant={(c) => c.tenant_name}
+            renderDetail={(rows) => <ChargeTable rows={rows} />}
+            amountLabel="Amount"
+            countLabel="Charges"
+            defaultPeriod={metric === 'outstanding' ? 'all' : 'month'}
+          />
+        );
       case 'work_orders':
-        return workOrders ? <WorkOrderTable rows={workOrders} /> : <Loading />;
+        if (!workOrders) return <Loading />;
+        return (
+          <BreakdownView
+            rows={workOrders}
+            getDate={(w) => w.created_at}
+            getAmount={() => 0}
+            getProperty={(w) => w.property_address ?? ''}
+            getTenant={(w) => w.tenant_name ?? ''}
+            renderDetail={(rows) => <WorkOrderTable rows={rows} />}
+            countLabel="Open jobs"
+            showAmount={false}
+            periods={false}
+          />
+        );
       case 'maintenance':
-        return workOrders ? <WorkOrderTable rows={workOrders} showCost /> : <Loading />;
+        if (!workOrders) return <Loading />;
+        return (
+          <BreakdownView
+            rows={workOrders}
+            getDate={(w) => w.completed_at}
+            getAmount={(w) => w.cost ?? 0}
+            getProperty={(w) => w.property_address ?? ''}
+            getTenant={(w) => w.tenant_name ?? ''}
+            renderDetail={(rows) => <WorkOrderTable rows={rows} showCost />}
+            amountLabel="Spend"
+            countLabel="Jobs"
+            defaultPeriod="year"
+          />
+        );
       default:
         return null;
     }

@@ -28,7 +28,7 @@ export default function WorkOrders() {
   if (!orders) return <Loading />;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <PageHeader
         title="Work Orders"
         subtitle="Maintenance requests across the portfolio."

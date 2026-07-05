@@ -27,6 +27,7 @@ export default function WorkOrderDetail() {
   const role = user?.role;
   const canManage = (role === 'admin' || role === 'manager') && hasPermission('manage_maintenance');
   const canUpdate = canManage || role === 'maintenance';
+  const isTenant = role === 'tenant';
 
   const [wo, setWo] = useState<WorkOrder | null>(null);
   const [staff, setStaff] = useState<MaintenanceStaff[]>([]);
@@ -46,6 +47,19 @@ export default function WorkOrderDetail() {
     await load();
   };
 
+  // A tenant may cancel their own request while it's still open/assigned, i.e.
+  // before maintenance has started work. The backend enforces the same window.
+  const canCancel = isTenant && (wo?.status === 'open' || wo?.status === 'assigned');
+  const cancelRequest = async () => {
+    if (!window.confirm('Cancel this maintenance request? This cannot be undone.')) return;
+    try {
+      await patch({ status: 'cancelled' });
+    } catch {
+      window.alert('This request can no longer be cancelled — work may have already begun.');
+      await load();
+    }
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
@@ -62,19 +76,19 @@ export default function WorkOrderDetail() {
   if (!wo) return <Loading />;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto">
       <Link to="/work-orders" className="text-sm text-blue-600 font-semibold hover:underline">
         ← Work orders
       </Link>
 
-      <div className="flex items-start justify-between mt-3 mb-6">
-        <div>
+      <div className="flex flex-col gap-3 mt-3 mb-6 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-slate-900">{wo.title}</h1>
           <p className="text-slate-500 mt-1">
             {wo.property_address} · Unit {wo.unit_label} · {wo.tenant_name ?? 'No tenant'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 shrink-0">
           <Badge value={wo.category} />
           <Badge value={wo.priority} />
           <Badge value={wo.status} />
@@ -147,6 +161,29 @@ export default function WorkOrderDetail() {
 
         {/* Actions */}
         <div className="space-y-6">
+          {isTenant && wo.status !== 'cancelled' && wo.status !== 'completed' && (
+            <Card className="p-6 space-y-3">
+              <h2 className="font-bold text-slate-800">Manage request</h2>
+              {canCancel ? (
+                <>
+                  <p className="text-sm text-slate-500">
+                    Changed your mind? You can cancel this request until maintenance begins work.
+                  </p>
+                  <button
+                    onClick={cancelRequest}
+                    className="w-full rounded-xl border-2 border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-100"
+                  >
+                    Cancel this request
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Work is already underway, so this request can no longer be cancelled. Message the team
+                  below if you have any questions.
+                </p>
+              )}
+            </Card>
+          )}
           {canUpdate && (
             <Card className="p-6 space-y-4">
               <h2 className="font-bold text-slate-800">Update</h2>

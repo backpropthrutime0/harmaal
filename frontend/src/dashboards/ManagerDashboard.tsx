@@ -1,12 +1,84 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getManagerDashboard } from '../data/api';
-import type { ManagerDashboard as ManagerData } from '../data/types';
-import { Card, EmptyState, Loading, PageHeader, StatCard, money } from '../components/ui';
+import { getManagerDashboard, listWorkOrders } from '../data/api';
+import type { ManagerDashboard as ManagerData, WorkOrder } from '../data/types';
+import { Card, EmptyState, Loading, Modal, PageHeader, StatCard, money } from '../components/ui';
 import { MonthlyFinancials } from './MonthlyFinancials';
+import { BreakdownView } from './BreakdownView';
+import { WorkOrderTable } from './tables';
+
+const OPEN_WO = ['open', 'assigned', 'in_progress'];
+
+/** Drill into work orders grouped by property or tenant, with a spend/period toggle. */
+function WorkOrderBreakdownModal({ onClose }: { onClose: () => void }) {
+  const [orders, setOrders] = useState<WorkOrder[] | null>(null);
+  const [view, setView] = useState<'open' | 'spend'>('open');
+
+  useEffect(() => {
+    listWorkOrders().then(setOrders).catch(() => setOrders([]));
+  }, []);
+
+  const open = orders?.filter((w) => OPEN_WO.includes(w.status)) ?? [];
+  const completed = orders?.filter((w) => w.cost && w.completed_at) ?? [];
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Work Orders"
+      subtitle="Group by property or tenant, and switch between open jobs and completed spend."
+    >
+      {!orders ? (
+        <Loading />
+      ) : (
+        <>
+          <div className="inline-flex rounded-lg bg-slate-100 p-0.5 mb-5">
+            {(['open', 'spend'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
+                  view === v ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {v === 'open' ? 'Open jobs' : 'Completed spend'}
+              </button>
+            ))}
+          </div>
+          {view === 'open' ? (
+            <BreakdownView
+              rows={open}
+              getDate={(w) => w.created_at}
+              getAmount={() => 0}
+              getProperty={(w) => w.property_address ?? ''}
+              getTenant={(w) => w.tenant_name ?? ''}
+              renderDetail={(rows) => <WorkOrderTable rows={rows} />}
+              countLabel="Open jobs"
+              showAmount={false}
+              periods={false}
+            />
+          ) : (
+            <BreakdownView
+              rows={completed}
+              getDate={(w) => w.completed_at}
+              getAmount={(w) => w.cost ?? 0}
+              getProperty={(w) => w.property_address ?? ''}
+              getTenant={(w) => w.tenant_name ?? ''}
+              renderDetail={(rows) => <WorkOrderTable rows={rows} showCost />}
+              amountLabel="Spend"
+              countLabel="Jobs"
+              defaultPeriod="year"
+            />
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
 
 export default function ManagerDashboard() {
   const [data, setData] = useState<ManagerData | null>(null);
+  const [showWorkOrders, setShowWorkOrders] = useState(false);
 
   useEffect(() => {
     getManagerDashboard().then(setData).catch(() => setData(null));
@@ -15,15 +87,22 @@ export default function ManagerDashboard() {
   if (!data) return <Loading />;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <PageHeader title="Operations Dashboard" subtitle="Rent collection and maintenance at a glance." />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <StatCard label="Due This Month" value={money(data.due_this_month)} />
         <StatCard label="Collected This Month" value={money(data.collected_this_month)} tone="good" />
         <StatCard label="Overdue Total" value={money(data.overdue_total)} tone={data.overdue_total > 0 ? 'bad' : 'good'} />
-        <StatCard label="Open Work Orders" value={data.open_work_orders} tone={data.open_work_orders > 0 ? 'warn' : 'good'} />
+        <StatCard
+          label="Open Work Orders"
+          value={data.open_work_orders}
+          tone={data.open_work_orders > 0 ? 'warn' : 'good'}
+          onClick={() => setShowWorkOrders(true)}
+        />
       </div>
+
+      {showWorkOrders && <WorkOrderBreakdownModal onClose={() => setShowWorkOrders(false)} />}
 
       <div className="mb-6">
         <MonthlyFinancials />

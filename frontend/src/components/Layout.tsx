@@ -43,6 +43,10 @@ const STAFF_NAV: NavSection[] = [
     ],
   },
   {
+    heading: 'Insights',
+    items: [{ to: '/analytics', label: 'Analytics', icon: '📈', permission: 'view_business' }],
+  },
+  {
     heading: 'Administration',
     items: [{ to: '/people', label: 'People', icon: '👥', permission: 'admin' }],
   },
@@ -100,12 +104,15 @@ export default function Layout({ children }: LayoutProps): ReactElement {
     .filter((section) => section.items.length > 0);
 
   const handleLogout = () => {
+    // Capture the role before clearing the session so residents return to their
+    // own sign-in page rather than the staff/management login.
+    const loginPath = role === 'tenant' ? '/tenant-login' : '/login';
     clearSession();
-    navigate('/login');
+    navigate(loginPath);
   };
 
   const sidebar = (
-    <aside className="w-64 shrink-0 bg-harmaal-blue text-white flex flex-col shadow-2xl">
+    <aside className="w-64 max-w-[85vw] shrink-0 bg-harmaal-blue text-white flex flex-col shadow-2xl pt-safe pb-safe pl-safe">
       <div className="p-6 border-b border-white/10">
         <div className="text-2xl font-bold tracking-tighter text-white">HARMAAL</div>
         <div className="text-[10px] text-harmaal-gold mt-1 uppercase tracking-widest font-bold">
@@ -158,7 +165,7 @@ export default function Layout({ children }: LayoutProps): ReactElement {
   );
 
   return (
-    <div className="flex min-h-screen bg-harmaal-sand font-sans text-slate-900">
+    <div className="flex min-h-screen-safe bg-harmaal-sand font-sans text-slate-900">
       {/* Desktop sidebar */}
       <div className="hidden md:flex">{sidebar}</div>
 
@@ -175,7 +182,7 @@ export default function Layout({ children }: LayoutProps): ReactElement {
       )}
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 shadow-sm">
+        <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-8 pr-safe shadow-sm">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileOpen((open) => !open)}

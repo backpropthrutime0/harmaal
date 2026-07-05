@@ -211,6 +211,7 @@ class ChargeRow(BaseModel):
     tenant_id: int
     tenant_name: str
     unit_label: str | None = None
+    property_id: int | None = None
     property_address: str | None = None
     amount: float
     period: str

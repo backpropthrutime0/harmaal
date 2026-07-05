@@ -211,22 +211,30 @@ async def get_work_order(
     return (await _enrich([wo], session))[0]
 
 
-@router.patch("/{work_order_id}", response_model=WorkOrderResponse)
-async def update_work_order(
-    work_order_id: int,
-    body: WorkOrderUpdate,
-    current: Annotated[TokenData, Depends(get_current_user)],
-    session: Annotated[AsyncSession, Depends(get_session)],
+async def _tenant_cancel(
+    wo: WorkOrder, body: WorkOrderUpdate, current: TokenData, session: AsyncSession
 ) -> WorkOrderResponse:
-    # Only staff and assigned maintenance can mutate.
-    if not (_is_staff(current) or current.role == "maintenance"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    if not current.has_permission("manage_maintenance"):
-        raise HTTPException(status_code=403, detail="manage_maintenance required")
-    wo = await _load(work_order_id, session)
-    if current.role == "maintenance" and wo.assigned_to != current.user_id:
-        raise HTTPException(status_code=403, detail="Not your work order")
+    """Tenant self-service cancellation of their own request.
 
+    Tenants can't manage work orders, but they may cancel their own request while
+    it's still open/assigned — i.e. before maintenance has started work.
+    """
+    await _assert_access(wo, current, session)
+    provided = set(body.model_dump(exclude_unset=True))
+    if provided != {"status"} or body.status != "cancelled":
+        raise HTTPException(status_code=403, detail="Tenants can only cancel their own request")
+    if wo.status not in {"open", "assigned"}:
+        raise HTTPException(
+            status_code=409, detail="This request can no longer be cancelled — work has already begun."
+        )
+    wo.status = "cancelled"
+    await session.commit()
+    await session.refresh(wo)
+    return (await _enrich([wo], session))[0]
+
+
+def _apply_staff_update(wo: WorkOrder, body: WorkOrderUpdate) -> None:
+    """Apply a staff/maintenance patch to a work order in place (validation + side effects)."""
     if body.status is not None:
         if body.status not in _STATUSES:
             raise HTTPException(status_code=422, detail=f"status must be one of {sorted(_STATUSES)}")
@@ -246,6 +254,29 @@ async def update_work_order(
         value = getattr(body, field)
         if value is not None:
             setattr(wo, field, value)
+
+
+@router.patch("/{work_order_id}", response_model=WorkOrderResponse)
+async def update_work_order(
+    work_order_id: int,
+    body: WorkOrderUpdate,
+    current: Annotated[TokenData, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> WorkOrderResponse:
+    wo = await _load(work_order_id, session)
+
+    if current.role == "tenant":
+        return await _tenant_cancel(wo, body, current, session)
+
+    # Only staff and assigned maintenance can otherwise mutate.
+    if not (_is_staff(current) or current.role == "maintenance"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if not current.has_permission("manage_maintenance"):
+        raise HTTPException(status_code=403, detail="manage_maintenance required")
+    if current.role == "maintenance" and wo.assigned_to != current.user_id:
+        raise HTTPException(status_code=403, detail="Not your work order")
+
+    _apply_staff_update(wo, body)
 
     await session.commit()
     await session.refresh(wo)

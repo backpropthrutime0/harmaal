@@ -14,6 +14,10 @@ node_modules/
 dist/
 .vite/
 
+# Playwright MCP session artefacts + local screenshot exports
+.playwright-mcp/
+/*.png
+
 # Claude Code (personal)
 .claude/settings.local.json
 CLAUDE.local.md

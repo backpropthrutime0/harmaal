@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import api from './api';
 import { register as registerTenant } from './auth/authApi';
 import type { Property, Tenant } from './data/types';
-import { Card, EmptyState, Loading, PageHeader, money } from './components/ui';
+import { Card, EmptyState, Loading, PageHeader, TableScroll, money } from './components/ui';
 
 export default function PropertyDetail() {
   const { id } = useParams<{ id: string }>();
@@ -36,7 +36,7 @@ export default function PropertyDetail() {
   if (!tenants) return <Loading />;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-6xl mx-auto">
       {toast && (
         <div className="fixed top-4 right-4 bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg font-semibold z-50">
           ✓ {toast}
@@ -71,6 +71,7 @@ export default function PropertyDetail() {
         {tenants.length === 0 ? (
           <EmptyState>No tenants registered for this property yet.</EmptyState>
         ) : (
+          <TableScroll minWidth="min-w-[560px]">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-slate-400 border-b border-slate-100">
@@ -105,6 +106,7 @@ export default function PropertyDetail() {
               ))}
             </tbody>
           </table>
+          </TableScroll>
         )}
       </Card>
 
@@ -183,17 +185,17 @@ function AddTenantModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white p-6 sm:p-8 rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold mb-6 text-slate-900">Initialize Lease</h2>
         <form onSubmit={submit} className="space-y-4">
           {error && <div className="p-3 bg-red-50 text-red-600 rounded-lg text-sm">{error}</div>}
           <input required placeholder="Full name" className={input} value={form.name} onChange={set('name')} />
           <input required type="email" placeholder="tenant@example.com" className={input} value={form.email} onChange={set('email')} />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input placeholder="Unit (e.g. A-101)" className={input} value={form.unit_label} onChange={set('unit_label')} />
             <input required type="number" step="0.01" placeholder="Monthly rent" className={input} value={form.rent_amount} onChange={set('rent_amount')} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <input required type="date" className={input} value={form.lease_start_date} onChange={set('lease_start_date')} />
             <input required type="date" className={input} value={form.lease_end_date} onChange={set('lease_end_date')} />
           </div>

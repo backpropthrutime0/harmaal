@@ -19,7 +19,7 @@ export default function TenantMaintenance() {
   if (!orders) return <Loading />;
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-3xl mx-auto">
       <PageHeader
         title="Maintenance"
         subtitle="Submit and track maintenance requests."
