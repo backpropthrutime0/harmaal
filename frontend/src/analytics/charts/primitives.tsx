@@ -95,3 +95,41 @@ export function EmptyChart({ message = 'No data for this selection.' }: { messag
     <div className="flex h-full items-center justify-center text-sm text-slate-400">{message}</div>
   );
 }
+
+/**
+ * Accessible tabular view of a chart's underlying rows — the "view as table"
+ * fallback that gives screen-reader and keyboard users the data recharts' SVG
+ * can't convey. Header keys are humanized; numbers are formatted lightly.
+ */
+export function DataTable({ rows }: { rows: readonly object[] }): ReactElement {
+  if (rows.length === 0) return <EmptyChart />;
+  const headers = Object.keys(rows[0]);
+  const fmt = (v: unknown) =>
+    typeof v === 'number' ? (Number.isInteger(v) ? v.toLocaleString() : v.toFixed(2)) : String(v ?? '');
+  return (
+    <div className="h-full overflow-auto">
+      <table className="w-full text-xs">
+        <thead className="sticky top-0 bg-white">
+          <tr className="text-left text-slate-400 border-b border-slate-100">
+            {headers.map((h) => (
+              <th key={h} scope="col" className="px-2 py-1.5 font-semibold capitalize">
+                {h.replace(/_/g, ' ')}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-b border-slate-50 last:border-0">
+              {headers.map((h) => (
+                <td key={h} className="px-2 py-1 text-slate-700">
+                  {fmt((r as Record<string, unknown>)[h])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

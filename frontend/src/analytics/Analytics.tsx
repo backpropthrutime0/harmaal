@@ -178,6 +178,17 @@ export default function Analytics(): ReactElement {
     );
   }
 
+  // Drill-through: clicking a property/tenant bar sets the corresponding global
+  // filter (and clears the other dimension) so every chart narrows to it.
+  const selectProperty = (address: string) => {
+    const p = data.properties.find((x) => x.address === address);
+    if (p) setFilters((f) => ({ ...f, propertyId: p.id, tenantId: 'all' }));
+  };
+  const selectTenant = (name: string) => {
+    const t = data.tenants.find((x) => x.name === name);
+    if (t) setFilters((f) => ({ ...f, tenantId: t.id }));
+  };
+
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto">
       <PageHeader title="Analytics" subtitle="Insights across revenue, profitability, tenants, and maintenance." />
@@ -225,7 +236,9 @@ export default function Analytics(): ReactElement {
       </div>
 
       {/* Only the active section mounts — keeps ~20 ResponsiveContainers from measuring at once. */}
-      {tab === 'revenue' && <RevenueCharts charges={base.fCharges} isMobile={isMobile} />}
+      {tab === 'revenue' && (
+        <RevenueCharts charges={base.fCharges} isMobile={isMobile} onSelectProperty={selectProperty} />
+      )}
       {tab === 'profit' && (
         <ProfitCharts
           charges={base.fCharges}
@@ -233,14 +246,25 @@ export default function Analytics(): ReactElement {
           workOrders={base.fWorkOrders}
           monthly={base.fMonthly}
           isMobile={isMobile}
+          onSelectProperty={selectProperty}
         />
       )}
       {tab === 'tenants' && (
-        <TenantCharts charges={base.fCharges} tenants={base.scopedTenants} isMobile={isMobile} />
+        <TenantCharts
+          charges={base.fCharges}
+          tenants={base.scopedTenants}
+          isMobile={isMobile}
+          onSelectTenant={selectTenant}
+        />
       )}
       {tab === 'maintenance' && <MaintenanceCharts workOrders={base.fWorkOrders} isMobile={isMobile} />}
       {tab === 'occupancy' && (
-        <OccupancyCharts properties={base.scopedProperties} refDate={occupancyRef} isMobile={isMobile} />
+        <OccupancyCharts
+          properties={base.scopedProperties}
+          refDate={occupancyRef}
+          isMobile={isMobile}
+          onSelectProperty={selectProperty}
+        />
       )}
     </div>
   );

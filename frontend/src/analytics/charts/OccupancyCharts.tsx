@@ -5,20 +5,28 @@ import type { Property } from '../../data/types';
 import { daysBetween, isLeaseActive, leaseExpiryByMonth } from '../compute';
 import { AXIS_TICK, GRID_STROKE, HARMAAL, shortPeriod } from '../theme';
 import { ChartCard } from './ChartCard';
-import { donut } from './builders';
+import { barName, donut } from './builders';
 import { CountTooltip } from './primitives';
 
 export function OccupancyCharts({
   properties,
   refDate,
   isMobile,
+  onSelectProperty,
 }: {
   /** Already scoped to the selected property (or all). */
   properties: Property[];
   /** Point-in-time date ('YYYY-MM-DD') at which to count active leases. */
   refDate: string;
   isMobile: boolean;
+  onSelectProperty?: (address: string) => void;
 }): ReactElement {
+  const drill = onSelectProperty
+    ? (d: unknown) => {
+        const n = barName(d);
+        if (n) onSelectProperty(n);
+      }
+    : undefined;
   const rows = useMemo(
     () =>
       properties.map((p) => {
@@ -60,7 +68,11 @@ export function OccupancyCharts({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
       <ChartCard
         title="Occupancy by property"
-        subtitle={`Occupied vs vacant units (as of ${refDate})`}
+        subtitle={
+          onSelectProperty
+            ? `Occupied vs vacant · click a bar to filter (as of ${refDate})`
+            : `Occupied vs vacant units (as of ${refDate})`
+        }
         full
         empty={noData}
         exportRows={{ filename: 'occupancy-by-property', rows }}
@@ -77,8 +89,8 @@ export function OccupancyCharts({
           />
           <Tooltip content={<CountTooltip />} cursor={{ fill: 'rgba(15,23,42,0.04)' }} />
           <Legend iconType="circle" />
-          <Bar dataKey="occupied" name="Occupied" stackId="u" fill={HARMAAL.blue} />
-          <Bar dataKey="vacant" name="Vacant" stackId="u" fill="#cbd5e1" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="occupied" name="Occupied" stackId="u" fill={HARMAAL.blue} cursor={drill ? 'pointer' : undefined} onClick={drill} />
+          <Bar dataKey="vacant" name="Vacant" stackId="u" fill="#cbd5e1" radius={[0, 4, 4, 0]} cursor={drill ? 'pointer' : undefined} onClick={drill} />
         </BarChart>
       </ChartCard>
 

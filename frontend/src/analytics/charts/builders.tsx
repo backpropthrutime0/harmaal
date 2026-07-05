@@ -20,6 +20,12 @@ export function prettify(name: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** Extract the category name from a recharts click datum (payload or top-level). */
+export function barName(d: unknown): string | undefined {
+  const o = d as { name?: string; payload?: { name?: string } };
+  return o.payload?.name ?? o.name;
+}
+
 /** Donut pie with colored slices, a custom tooltip, and a legend. */
 export function donut({
   data,
@@ -69,6 +75,7 @@ export function hbar({
   isMobile,
   valueTickFormat,
   colorLookup,
+  onSelect,
 }: {
   data: NamedValue[];
   color: string;
@@ -77,6 +84,8 @@ export function hbar({
   valueTickFormat?: (v: number) => string;
   /** Per-bar colors keyed by name (else the flat `color`). */
   colorLookup?: Record<string, string>;
+  /** When set, bars become clickable and call this with the row's `name`. */
+  onSelect?: (name: string) => void;
 }): ReactElement {
   return (
     <BarChart data={data} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 4 }}>
@@ -90,7 +99,13 @@ export function hbar({
         tickFormatter={(v: string) => (v.length > 18 ? `${v.slice(0, 17)}…` : v)}
       />
       <Tooltip content={tooltip} cursor={{ fill: 'rgba(15,23,42,0.04)' }} />
-      <Bar dataKey="value" radius={[0, 4, 4, 0]} fill={color}>
+      <Bar
+        dataKey="value"
+        radius={[0, 4, 4, 0]}
+        fill={color}
+        cursor={onSelect ? 'pointer' : undefined}
+        onClick={onSelect ? (d) => { const n = barName(d); if (n) onSelect(n); } : undefined}
+      >
         {colorLookup &&
           data.map((d, i) => <Cell key={d.name} fill={colorFor(d.name, i, colorLookup)} />)}
       </Bar>

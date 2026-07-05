@@ -5,13 +5,9 @@ import type { WorkOrder } from '../../data/types';
 import { countBy, daysBetween, histogram, perStaffOnTime, sumByPeriod } from '../compute';
 import { AXIS_TICK, compactMoney, GRID_STROKE, HARMAAL, PRIORITY_COLORS, STATUS_COLORS, shortPeriod } from '../theme';
 import { ChartCard } from './ChartCard';
+import { axisInterval } from './axis';
 import { donut, hbar } from './builders';
 import { CountTooltip, MoneyTooltip } from './primitives';
-
-function axisInterval(count: number, isMobile: boolean): number {
-  const target = isMobile ? 6 : 12;
-  return count > target ? Math.ceil(count / target) - 1 : 0;
-}
 
 export function MaintenanceCharts({
   workOrders,

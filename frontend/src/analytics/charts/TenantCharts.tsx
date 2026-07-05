@@ -27,11 +27,13 @@ export function TenantCharts({
   charges,
   tenants,
   isMobile,
+  onSelectTenant,
 }: {
   charges: ChargeRow[];
   /** Already scoped to the selected property. */
   tenants: Tenant[];
   isMobile: boolean;
+  onSelectTenant?: (name: string) => void;
 }): ReactElement {
   // Days relative to the due date for every *paid* charge (negative = early).
   const daysLate = useMemo(
@@ -122,12 +124,12 @@ export function TenantCharts({
 
       <ChartCard
         title="Top late payers"
-        subtitle="Tenants ranked by number of late payments"
+        subtitle={onSelectTenant ? 'Late payments · click a bar to filter' : 'Tenants ranked by number of late payments'}
         empty={topLate.length === 0}
         emptyMessage="No late payments in this selection. 🎉"
         exportRows={{ filename: 'top-late-payers', rows: topLate }}
       >
-        {hbar({ data: topLate, color: '#dc2626', tooltip: <CountTooltip />, isMobile })}
+        {hbar({ data: topLate, color: '#dc2626', tooltip: <CountTooltip />, isMobile, onSelect: onSelectTenant })}
       </ChartCard>
 
       <ChartCard

@@ -16,14 +16,9 @@ import type { ChargeRow } from '../../data/types';
 import { countBy, sumBy } from '../compute';
 import { AXIS_TICK, compactMoney, GRID_STROKE, HARMAAL, STATUS_COLORS, shortPeriod } from '../theme';
 import { ChartCard } from './ChartCard';
+import { axisInterval } from './axis';
 import { donut, hbar } from './builders';
 import { CountTooltip, MoneyTooltip, PercentTooltip } from './primitives';
-
-/** Even x-axis label thinning so 60-month trends stay legible. */
-function axisInterval(count: number, isMobile: boolean): number {
-  const target = isMobile ? 6 : 12;
-  return count > target ? Math.ceil(count / target) - 1 : 0;
-}
 
 interface PeriodRevenue {
   period: string;
@@ -35,9 +30,11 @@ interface PeriodRevenue {
 export function RevenueCharts({
   charges,
   isMobile,
+  onSelectProperty,
 }: {
   charges: ChargeRow[];
   isMobile: boolean;
+  onSelectProperty?: (address: string) => void;
 }): ReactElement {
   const trend = useMemo<PeriodRevenue[]>(() => {
     const byPeriod = new Map<string, { due: number; collected: number }>();
@@ -135,7 +132,7 @@ export function RevenueCharts({
 
       <ChartCard
         title="Revenue by property"
-        subtitle="Total collected, top properties"
+        subtitle={onSelectProperty ? 'Total collected · click a bar to filter' : 'Total collected, top properties'}
         empty={byProperty.length === 0}
         exportRows={{ filename: 'revenue-by-property', rows: byProperty }}
       >
@@ -145,6 +142,7 @@ export function RevenueCharts({
           tooltip: <MoneyTooltip />,
           isMobile,
           valueTickFormat: compactMoney,
+          onSelect: onSelectProperty,
         })}
       </ChartCard>
 

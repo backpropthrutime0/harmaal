@@ -18,13 +18,9 @@ import { EXPENSE_CATEGORIES } from '../../data/types';
 import { periodOf, sumBy } from '../compute';
 import { AXIS_TICK, CATEGORY_COLORS, colorFor, compactMoney, GRID_STROKE, HARMAAL, shortPeriod } from '../theme';
 import { ChartCard } from './ChartCard';
-import { donut } from './builders';
+import { axisInterval } from './axis';
+import { barName, donut } from './builders';
 import { MoneyTooltip } from './primitives';
-
-function axisInterval(count: number, isMobile: boolean): number {
-  const target = isMobile ? 6 : 12;
-  return count > target ? Math.ceil(count / target) - 1 : 0;
-}
 
 export function ProfitCharts({
   charges,
@@ -32,6 +28,7 @@ export function ProfitCharts({
   workOrders,
   monthly,
   isMobile,
+  onSelectProperty,
 }: {
   charges: ChargeRow[];
   expenses: Expense[];
@@ -39,7 +36,14 @@ export function ProfitCharts({
   /** Already clipped to the date range (portfolio-wide — ignores property/tenant). */
   monthly: MonthlyFinancials[];
   isMobile: boolean;
+  onSelectProperty?: (address: string) => void;
 }): ReactElement {
+  const drill = onSelectProperty
+    ? (d: unknown) => {
+        const n = barName(d);
+        if (n) onSelectProperty(n);
+      }
+    : undefined;
   const trend = useMemo(() => {
     const m = new Map<string, { revenue: number; expenses: number; wo: number }>();
     const get = (p: string) => {
@@ -167,7 +171,7 @@ export function ProfitCharts({
 
       <ChartCard
         title="Per-property P&L"
-        subtitle="Collected revenue vs total costs, by property"
+        subtitle={onSelectProperty ? 'Revenue vs costs · click a bar to filter' : 'Collected revenue vs total costs, by property'}
         full
         empty={perProperty.length === 0}
         exportRows={{ filename: 'per-property-pl', rows: perProperty }}
@@ -184,8 +188,8 @@ export function ProfitCharts({
           />
           <Tooltip content={<MoneyTooltip />} cursor={{ fill: 'rgba(15,23,42,0.04)' }} />
           <Legend iconType="circle" />
-          <Bar dataKey="revenue" name="Revenue" fill={HARMAAL.blue} radius={[0, 3, 3, 0]} />
-          <Bar dataKey="cost" name="Costs" fill={HARMAAL.earth} radius={[0, 3, 3, 0]} />
+          <Bar dataKey="revenue" name="Revenue" fill={HARMAAL.blue} radius={[0, 3, 3, 0]} cursor={drill ? 'pointer' : undefined} onClick={drill} />
+          <Bar dataKey="cost" name="Costs" fill={HARMAAL.earth} radius={[0, 3, 3, 0]} cursor={drill ? 'pointer' : undefined} onClick={drill} />
         </BarChart>
       </ChartCard>
 
