@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { ResponsiveContainer } from 'recharts';
 import { Card } from '../../components/ui';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { exportCsv } from '../export';
 import { EmptyChart } from './primitives';
 
 /**
@@ -20,6 +21,7 @@ export function ChartCard({
   action,
   empty,
   emptyMessage,
+  exportRows,
 }: {
   title: string;
   subtitle?: string;
@@ -33,6 +35,8 @@ export function ChartCard({
   /** When true, render an empty-state message instead of the chart. */
   empty?: boolean;
   emptyMessage?: string;
+  /** Adds a "⤓ CSV" download button that serializes these rows. */
+  exportRows?: { filename: string; rows: readonly object[] };
 }): ReactElement {
   const isMobile = useIsMobile();
   const h = height ?? (isMobile ? 220 : 280);
@@ -43,7 +47,18 @@ export function ChartCard({
           <h3 className="font-bold text-slate-800 text-sm sm:text-base truncate">{title}</h3>
           {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
         </div>
-        {action && <div className="shrink-0">{action}</div>}
+        <div className="shrink-0 flex items-center gap-2">
+          {exportRows && exportRows.rows.length > 0 && (
+            <button
+              onClick={() => exportCsv(exportRows.filename, exportRows.rows)}
+              className="text-xs font-semibold text-slate-400 hover:text-harmaal-blue transition"
+              title="Download as CSV"
+            >
+              ⤓ CSV
+            </button>
+          )}
+          {action}
+        </div>
       </div>
       <div style={{ width: '100%', height: h }}>
         {empty ? (

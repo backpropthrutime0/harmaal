@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ChargeRow, WorkOrder } from '../data/types';
 import {
+  agingBuckets,
   classifyLate,
   countBy,
   daysBetween,
@@ -8,6 +9,7 @@ import {
   histogram,
   isLeaseActive,
   kde,
+  leaseExpiryByMonth,
   perStaffOnTime,
   periodOf,
   silvermanBandwidth,
@@ -469,5 +471,53 @@ describe('isLeaseActive', () => {
   it('false before start or after end', () => {
     expect(isLeaseActive(lease, '2024-12-31')).toBe(false);
     expect(isLeaseActive(lease, '2027-01-01')).toBe(false);
+  });
+});
+
+describe('agingBuckets', () => {
+  const asOf = '2026-07-01';
+  it('buckets overdue balances by age and ignores non-overdue / future-due', () => {
+    const rows = [
+      charge({ status: 'overdue', amount: 100, due_date: '2026-06-20' }), // 11d → 0–30
+      charge({ status: 'overdue', amount: 200, due_date: '2026-05-20' }), // 42d → 31–60
+      charge({ status: 'overdue', amount: 300, due_date: '2026-04-20' }), // 72d → 61–90
+      charge({ status: 'overdue', amount: 400, due_date: '2026-01-01' }), // 181d → 90+
+      charge({ status: 'paid', amount: 999, due_date: '2026-01-01' }), // ignored (not overdue)
+      charge({ status: 'overdue', amount: 500, due_date: '2026-08-01' }), // future → skipped
+    ];
+    const b = agingBuckets(rows, asOf);
+    expect(b.map((x) => x.amount)).toEqual([100, 200, 300, 400]);
+    expect(b.map((x) => x.count)).toEqual([1, 1, 1, 1]);
+    expect(b.map((x) => x.label)).toEqual(['0–30', '31–60', '61–90', '90+']);
+  });
+  it('empty input yields four zero buckets', () => {
+    const b = agingBuckets([], asOf);
+    expect(b).toHaveLength(4);
+    expect(b.every((x) => x.amount === 0 && x.count === 0)).toBe(true);
+  });
+});
+
+describe('leaseExpiryByMonth', () => {
+  it('counts lease ends per month over a dense window', () => {
+    const leases = [
+      { lease_end_date: '2026-07-31' },
+      { lease_end_date: '2026-07-05' },
+      { lease_end_date: '2026-09-15' },
+      { lease_end_date: '2025-01-01' }, // outside window → ignored
+    ];
+    const out = leaseExpiryByMonth(leases, '2026-07', 3);
+    expect(out).toEqual([
+      { period: '2026-07', count: 2 },
+      { period: '2026-08', count: 0 },
+      { period: '2026-09', count: 1 },
+    ]);
+  });
+  it('rolls over the year boundary and returns [] for months<=0', () => {
+    const out = leaseExpiryByMonth([{ lease_end_date: '2027-01-10' }], '2026-12', 2);
+    expect(out).toEqual([
+      { period: '2026-12', count: 0 },
+      { period: '2027-01', count: 1 },
+    ]);
+    expect(leaseExpiryByMonth([], '2026-01', 0)).toEqual([]);
   });
 });

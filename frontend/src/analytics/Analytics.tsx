@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   getCharges,
   getMonthlyFinancials,
@@ -17,7 +18,8 @@ import {
   filterCharges,
   filterExpenses,
   filterWorkOrders,
-  initialFilters,
+  parseFilters,
+  serializeFilters,
   type FilterState,
 } from './filters';
 import { FilterBar } from './charts/FilterBar';
@@ -49,11 +51,21 @@ interface RawData {
 
 export default function Analytics(): ReactElement {
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState<RawData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [failed, setFailed] = useState<string[]>([]);
-  const [filters, setFilters] = useState<FilterState>(() => initialFilters());
-  const [tab, setTab] = useState<TabKey>('revenue');
+  // Hydrate filters + active tab from the URL once (shareable/bookmarkable views).
+  const [filters, setFilters] = useState<FilterState>(() => parseFilters(searchParams));
+  const [tab, setTab] = useState<TabKey>(() => {
+    const t = searchParams.get('tab');
+    return TABS.some((x) => x.key === t) ? (t as TabKey) : 'revenue';
+  });
+
+  // Mirror filters + tab back into the URL (replace: no history-stack spam).
+  useEffect(() => {
+    setSearchParams(serializeFilters(filters, tab), { replace: true });
+  }, [filters, tab, setSearchParams]);
 
   useEffect(() => {
     let alive = true;

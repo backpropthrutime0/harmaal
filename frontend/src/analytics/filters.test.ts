@@ -16,8 +16,10 @@ import {
   filterExpenses,
   filterWorkOrders,
   initialFilters,
+  parseFilters,
   propertyOptions,
   resolveRange,
+  serializeFilters,
   tenantOptions,
   type FilterState,
 } from './filters';
@@ -518,5 +520,58 @@ describe('filterExpenses', () => {
 
   it('returns [] for empty expenses', () => {
     expect(filterExpenses([], fs(), 'all')).toHaveLength(0);
+  });
+});
+
+// --------------------------------------------------------------------------
+// serializeFilters / parseFilters (URL round-trip)
+// --------------------------------------------------------------------------
+
+describe('serializeFilters / parseFilters', () => {
+  it('omits default (all) property/tenant and non-custom range', () => {
+    const p = serializeFilters(fs({ preset: 'last_12', propertyId: 'all', tenantId: 'all' }), 'revenue');
+    expect(p).toEqual({ tab: 'revenue', preset: 'last_12' });
+  });
+
+  it('includes prop, tenant, and custom range when set', () => {
+    const p = serializeFilters(
+      fs({ preset: 'custom', from: '2024-01', to: '2024-06', propertyId: 3, tenantId: 7 }),
+      'maintenance',
+    );
+    expect(p).toEqual({
+      tab: 'maintenance',
+      preset: 'custom',
+      from: '2024-01',
+      to: '2024-06',
+      prop: '3',
+      tenant: '7',
+    });
+  });
+
+  it('round-trips a custom range with ids', () => {
+    const original = fs({ preset: 'custom', from: '2024-01', to: '2024-06', propertyId: 3, tenantId: 7 });
+    const params = new URLSearchParams(serializeFilters(original, 'tenants'));
+    const parsed = parseFilters(params, NOW_JUL_2026);
+    expect(parsed).toEqual(original);
+  });
+
+  it('re-derives a relative preset from `now` (not stored bounds)', () => {
+    const params = new URLSearchParams({ preset: 'this_month' });
+    expect(parseFilters(params, NOW_JUL_2026)).toEqual({
+      preset: 'this_month',
+      from: '2026-07',
+      to: '2026-07',
+      propertyId: 'all',
+      tenantId: 'all',
+    });
+  });
+
+  it('falls back to last_12 / all for missing or invalid params', () => {
+    const parsed = parseFilters(new URLSearchParams({ preset: 'bogus', prop: 'x', tenant: '' }), NOW_JUL_2026);
+    expect(parsed.preset).toBe('last_12');
+    expect(parsed.propertyId).toBe('all');
+    expect(parsed.tenantId).toBe('all');
+    expect(parsed.from).toBe('2025-08');
+    expect(parsed.to).toBe('2026-07');
   });
 });

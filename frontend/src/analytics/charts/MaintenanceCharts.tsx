@@ -49,6 +49,13 @@ export function MaintenanceCharts({
         .map((s) => ({ name: s.staff, onTime: s.onTime, late: s.late })),
     [staff],
   );
+  const cyclePerStaff = useMemo(
+    () =>
+      staff
+        .filter((s) => s.avgDaysToComplete !== null)
+        .map((s) => ({ name: s.staff, value: Math.round((s.avgDaysToComplete ?? 0) * 10) / 10 })),
+    [staff],
+  );
 
   const cycleHist = useMemo(
     () =>
@@ -65,20 +72,49 @@ export function MaintenanceCharts({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-      <ChartCard title="Work orders by status" subtitle="Current state of every job in range" empty={noWO}>
+      <ChartCard
+        title="Work orders by status"
+        subtitle="Current state of every job in range"
+        empty={noWO}
+        exportRows={{ filename: 'work-orders-by-status', rows: byStatus }}
+      >
         {donut({ data: byStatus, tooltip: <CountTooltip />, isMobile, colorLookup: STATUS_COLORS })}
       </ChartCard>
 
-      <ChartCard title="Work orders by priority" subtitle="Urgency mix" empty={noWO}>
+      <ChartCard
+        title="Work orders by priority"
+        subtitle="Urgency mix"
+        empty={noWO}
+        exportRows={{ filename: 'work-orders-by-priority', rows: byPriority }}
+      >
         {donut({ data: byPriority, tooltip: <CountTooltip />, isMobile, colorLookup: PRIORITY_COLORS })}
       </ChartCard>
 
-      <ChartCard title="Work orders by category" subtitle="What breaks most" empty={byCategory.length === 0}>
+      <ChartCard
+        title="Work orders by category"
+        subtitle="What breaks most"
+        empty={byCategory.length === 0}
+        exportRows={{ filename: 'work-orders-by-category', rows: byCategory }}
+      >
         {hbar({ data: byCategory, color: HARMAAL.blue, tooltip: <CountTooltip />, isMobile })}
       </ChartCard>
 
-      <ChartCard title="Jobs completed per staff" subtitle="Throughput by assignee" empty={completedPerStaff.length === 0}>
+      <ChartCard
+        title="Jobs completed per staff"
+        subtitle="Throughput by assignee"
+        empty={completedPerStaff.length === 0}
+        exportRows={{ filename: 'jobs-completed-per-staff', rows: completedPerStaff }}
+      >
         {hbar({ data: completedPerStaff, color: HARMAAL.earth, tooltip: <CountTooltip />, isMobile })}
+      </ChartCard>
+
+      <ChartCard
+        title="Avg days to complete per staff"
+        subtitle="Cycle time from creation to completion"
+        empty={cyclePerStaff.length === 0}
+        exportRows={{ filename: 'avg-cycle-time-per-staff', rows: cyclePerStaff }}
+      >
+        {hbar({ data: cyclePerStaff, color: HARMAAL.blue, tooltip: <CountTooltip />, isMobile })}
       </ChartCard>
 
       <ChartCard
@@ -87,6 +123,7 @@ export function MaintenanceCharts({
         full
         empty={onTimePerStaff.length === 0}
         emptyMessage="No scheduled work orders in this selection."
+        exportRows={{ filename: 'on-time-per-staff', rows: onTimePerStaff }}
       >
         <BarChart data={onTimePerStaff} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} horizontal={false} />
@@ -105,7 +142,13 @@ export function MaintenanceCharts({
         </BarChart>
       </ChartCard>
 
-      <ChartCard title="Maintenance spend over time" subtitle="Completed work-order costs by month" full empty={spend.length === 0}>
+      <ChartCard
+        title="Maintenance spend over time"
+        subtitle="Completed work-order costs by month"
+        full
+        empty={spend.length === 0}
+        exportRows={{ filename: 'maintenance-spend', rows: spend }}
+      >
         <BarChart data={spend} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
           <XAxis
@@ -128,6 +171,7 @@ export function MaintenanceCharts({
         subtitle="Days from creation to completion (histogram)"
         full
         empty={cycleHist.length === 0}
+        exportRows={{ filename: 'time-to-complete', rows: cycleHist }}
       >
         <BarChart data={cycleHist} margin={{ top: 8, right: 12, bottom: 4, left: 4 }} barCategoryGap={1}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />

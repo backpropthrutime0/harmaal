@@ -6,6 +6,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   ReferenceLine,
   Tooltip,
@@ -13,11 +14,14 @@ import {
   YAxis,
 } from 'recharts';
 import type { ChargeRow, Tenant } from '../../data/types';
-import { classifyLate, histogram, kde, tenantLateStats } from '../compute';
-import { AXIS_TICK, GRID_STROKE, HARMAAL } from '../theme';
+import { money } from '../../format';
+import { agingBuckets, classifyLate, histogram, kde, tenantLateStats } from '../compute';
+import { AXIS_TICK, compactMoney, GRID_STROKE, HARMAAL } from '../theme';
 import { ChartCard } from './ChartCard';
 import { hbar } from './builders';
-import { CountTooltip } from './primitives';
+import { CountTooltip, MoneyTooltip } from './primitives';
+
+const AGING_COLORS = ['#d97706', '#ea580c', '#dc2626', '#991b1b'];
 
 export function TenantCharts({
   charges,
@@ -67,6 +71,11 @@ export function TenantCharts({
     [tenants, isMobile],
   );
 
+  // Delinquency aging is a "now" concept — overdue status is derived as of today.
+  const asOf = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const aging = useMemo(() => agingBuckets(charges, asOf), [charges, asOf]);
+  const agingTotal = aging.reduce((s, b) => s + b.amount, 0);
+
   const noPayments = daysLate.length === 0;
 
   return (
@@ -75,6 +84,7 @@ export function TenantCharts({
         title="Payment timing — histogram"
         subtitle="Days between due date and payment (0 = on time)"
         empty={noPayments}
+        exportRows={{ filename: 'payment-timing-histogram', rows: lateHist }}
       >
         <BarChart data={lateHist} margin={{ top: 8, right: 12, bottom: 4, left: 4 }} barCategoryGap={1}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
@@ -115,14 +125,36 @@ export function TenantCharts({
         subtitle="Tenants ranked by number of late payments"
         empty={topLate.length === 0}
         emptyMessage="No late payments in this selection. 🎉"
+        exportRows={{ filename: 'top-late-payers', rows: topLate }}
       >
         {hbar({ data: topLate, color: '#dc2626', tooltip: <CountTooltip />, isMobile })}
+      </ChartCard>
+
+      <ChartCard
+        title="Delinquency aging"
+        subtitle={`Overdue balance by age · ${money(agingTotal)} total`}
+        empty={agingTotal === 0}
+        emptyMessage="Nothing overdue in this selection. 🎉"
+        exportRows={{ filename: 'delinquency-aging', rows: aging }}
+      >
+        <BarChart data={aging} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+          <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+          <XAxis dataKey="label" tick={AXIS_TICK} height={24} />
+          <YAxis tick={AXIS_TICK} tickFormatter={compactMoney} width={52} />
+          <Tooltip content={<MoneyTooltip />} cursor={{ fill: 'rgba(15,23,42,0.04)' }} />
+          <Bar dataKey="amount" name="Overdue" radius={[3, 3, 0, 0]}>
+            {aging.map((b, i) => (
+              <Cell key={b.label} fill={AGING_COLORS[i]} />
+            ))}
+          </Bar>
+        </BarChart>
       </ChartCard>
 
       <ChartCard
         title="On-time vs late per tenant"
         subtitle="Paid charges split by punctuality (top 10 by volume)"
         empty={punctuality.length === 0}
+        exportRows={{ filename: 'punctuality-per-tenant', rows: punctuality }}
       >
         <BarChart data={punctuality} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} horizontal={false} />
@@ -146,6 +178,7 @@ export function TenantCharts({
         subtitle="How monthly rents are spread across tenants"
         full
         empty={rentHist.length === 0}
+        exportRows={{ filename: 'rent-distribution', rows: rentHist }}
       >
         <BarChart data={rentHist} margin={{ top: 8, right: 12, bottom: 4, left: 4 }} barCategoryGap={1}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />

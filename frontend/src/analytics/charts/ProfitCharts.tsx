@@ -104,6 +104,36 @@ export function ProfitCharts({
     [monthly],
   );
 
+  // Revenue vs total costs per property (expenses + repair-job costs — the same
+  // disjoint streams as the profit trend). Grouped by property_address, which all
+  // three sources carry.
+  const perProperty = useMemo(() => {
+    const m = new Map<string, { revenue: number; cost: number }>();
+    const get = (k: string) => {
+      let r = m.get(k);
+      if (!r) {
+        r = { revenue: 0, cost: 0 };
+        m.set(k, r);
+      }
+      return r;
+    };
+    for (const c of charges) if (c.status === 'paid') get(c.property_address ?? 'Unknown').revenue += c.amount;
+    for (const e of expenses) get(e.property_address ?? 'Unknown').cost += e.amount;
+    for (const w of workOrders) if (w.completed_at && w.cost) get(w.property_address ?? 'Unknown').cost += w.cost;
+    return [...m.entries()]
+      .map(([name, v]) => ({ name, revenue: v.revenue, cost: v.cost, net: v.revenue - v.cost }))
+      .sort((a, b) => b.net - a.net);
+  }, [charges, expenses, workOrders]);
+
+  const undeposited = useMemo(
+    () =>
+      monthly
+        .slice()
+        .sort((a, b) => (a.period < b.period ? -1 : 1))
+        .map((m) => ({ period: m.period, undeposited: Math.max(0, m.cash_collected - m.cash_deposited) })),
+    [monthly],
+  );
+
   const interval = axisInterval(trend.length, isMobile);
 
   return (
@@ -113,6 +143,7 @@ export function ProfitCharts({
         subtitle="Collected rent − expenses − maintenance costs, by month"
         full
         empty={trend.length === 0}
+        exportRows={{ filename: 'profit-trend', rows: trend }}
       >
         <ComposedChart data={trend} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
@@ -134,11 +165,68 @@ export function ProfitCharts({
         </ComposedChart>
       </ChartCard>
 
-      <ChartCard title="Expenses by category" subtitle="Where the money goes" empty={byCategory.length === 0}>
+      <ChartCard
+        title="Per-property P&L"
+        subtitle="Collected revenue vs total costs, by property"
+        full
+        empty={perProperty.length === 0}
+        exportRows={{ filename: 'per-property-pl', rows: perProperty }}
+      >
+        <BarChart data={perProperty} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+          <CartesianGrid stroke={GRID_STROKE} horizontal={false} />
+          <XAxis type="number" tick={AXIS_TICK} tickFormatter={compactMoney} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            width={isMobile ? 96 : 150}
+            tick={AXIS_TICK}
+            tickFormatter={(v: string) => (v.length > 20 ? `${v.slice(0, 19)}…` : v)}
+          />
+          <Tooltip content={<MoneyTooltip />} cursor={{ fill: 'rgba(15,23,42,0.04)' }} />
+          <Legend iconType="circle" />
+          <Bar dataKey="revenue" name="Revenue" fill={HARMAAL.blue} radius={[0, 3, 3, 0]} />
+          <Bar dataKey="cost" name="Costs" fill={HARMAAL.earth} radius={[0, 3, 3, 0]} />
+        </BarChart>
+      </ChartCard>
+
+      <ChartCard
+        title="Expenses by category"
+        subtitle="Where the money goes"
+        empty={byCategory.length === 0}
+        exportRows={{ filename: 'expenses-by-category', rows: byCategory }}
+      >
         {donut({ data: byCategory, tooltip: <MoneyTooltip />, isMobile, colorLookup: CATEGORY_COLORS })}
       </ChartCard>
 
-      <ChartCard title="Cash on hand" subtitle="Portfolio-wide — ignores property/tenant filters" empty={cash.length === 0}>
+      <ChartCard
+        title="Undeposited cash"
+        subtitle="Cash collected but not yet banked — portfolio-wide"
+        empty={undeposited.length === 0}
+        exportRows={{ filename: 'undeposited-cash', rows: undeposited }}
+      >
+        <AreaChart data={undeposited} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+          <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+          <XAxis
+            dataKey="period"
+            tick={AXIS_TICK}
+            tickFormatter={shortPeriod}
+            interval={axisInterval(undeposited.length, isMobile)}
+            angle={isMobile ? -45 : 0}
+            textAnchor={isMobile ? 'end' : 'middle'}
+            height={isMobile ? 48 : 30}
+          />
+          <YAxis tick={AXIS_TICK} tickFormatter={compactMoney} width={52} />
+          <Tooltip content={<MoneyTooltip labelFormat={shortPeriod} />} />
+          <Area type="monotone" dataKey="undeposited" name="Undeposited" stroke="#dc2626" fill="#dc2626" fillOpacity={0.15} strokeWidth={2} />
+        </AreaChart>
+      </ChartCard>
+
+      <ChartCard
+        title="Cash on hand"
+        subtitle="Portfolio-wide — ignores property/tenant filters"
+        empty={cash.length === 0}
+        exportRows={{ filename: 'cash-on-hand', rows: cash }}
+      >
         <AreaChart data={cash} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
           <XAxis
@@ -161,6 +249,7 @@ export function ProfitCharts({
         subtitle="Monthly expenses stacked by category"
         full
         empty={catTrend.length === 0}
+        exportRows={{ filename: 'expense-breakdown', rows: catTrend }}
       >
         <BarChart data={catTrend} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />

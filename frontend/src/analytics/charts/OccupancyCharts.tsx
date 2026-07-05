@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import type { ReactElement } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Property } from '../../data/types';
-import { isLeaseActive } from '../compute';
-import { AXIS_TICK, GRID_STROKE, HARMAAL } from '../theme';
+import { daysBetween, isLeaseActive, leaseExpiryByMonth } from '../compute';
+import { AXIS_TICK, GRID_STROKE, HARMAAL, shortPeriod } from '../theme';
 import { ChartCard } from './ChartCard';
 import { donut } from './builders';
 import { CountTooltip } from './primitives';
@@ -42,6 +42,20 @@ export function OccupancyCharts({
   // A property with 0 units yields an all-zero pie (recharts draws no arcs).
   const portfolioEmpty = noData || portfolio.every((p) => p.value === 0);
 
+  // Upcoming lease expiries (renewals/vacancies) — always forward-looking from
+  // today, independent of the selected range.
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const leases = useMemo(() => properties.flatMap((p) => p.tenants), [properties]);
+  const expiry = useMemo(() => leaseExpiryByMonth(leases, today.slice(0, 7), 12), [leases, today]);
+  const expiringSoon = useMemo(
+    () =>
+      leases.filter((l) => {
+        const d = daysBetween(today, l.lease_end_date);
+        return d >= 0 && d <= 60;
+      }).length,
+    [leases, today],
+  );
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
       <ChartCard
@@ -49,6 +63,7 @@ export function OccupancyCharts({
         subtitle={`Occupied vs vacant units (as of ${refDate})`}
         full
         empty={noData}
+        exportRows={{ filename: 'occupancy-by-property', rows }}
       >
         <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} horizontal={false} />
@@ -71,6 +86,7 @@ export function OccupancyCharts({
         title="Portfolio occupancy"
         subtitle={`All units, occupied vs vacant (as of ${refDate})`}
         empty={portfolioEmpty}
+        exportRows={{ filename: 'portfolio-occupancy', rows: portfolio }}
       >
         {donut({
           data: portfolio,
@@ -78,6 +94,30 @@ export function OccupancyCharts({
           isMobile,
           colorLookup: { Occupied: HARMAAL.blue, Vacant: '#cbd5e1' },
         })}
+      </ChartCard>
+
+      <ChartCard
+        title="Lease expiries — next 12 months"
+        subtitle={`Renewals/vacancies coming up · ${expiringSoon} expiring within 60 days`}
+        full
+        empty={leases.length === 0}
+        exportRows={{ filename: 'lease-expiries', rows: expiry }}
+      >
+        <BarChart data={expiry} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+          <CartesianGrid stroke={GRID_STROKE} vertical={false} />
+          <XAxis
+            dataKey="period"
+            tick={AXIS_TICK}
+            tickFormatter={shortPeriod}
+            interval={0}
+            angle={isMobile ? -45 : 0}
+            textAnchor={isMobile ? 'end' : 'middle'}
+            height={isMobile ? 48 : 30}
+          />
+          <YAxis tick={AXIS_TICK} allowDecimals={false} width={36} />
+          <Tooltip content={<CountTooltip labelFormat={shortPeriod} />} />
+          <Bar dataKey="count" name="Leases ending" fill={HARMAAL.gold} radius={[3, 3, 0, 0]} />
+        </BarChart>
       </ChartCard>
     </div>
   );

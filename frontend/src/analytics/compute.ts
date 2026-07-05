@@ -350,3 +350,72 @@ export function perStaffOnTime(workOrders: WorkOrder[]): StaffOnTimeStat[] {
   }
   return out.sort((a, b) => b.completed - a.completed);
 }
+
+// --------------------------------------------------------------------------
+// Domain: delinquency aging
+// --------------------------------------------------------------------------
+
+export interface AgingBucket {
+  label: string;
+  amount: number;
+  count: number;
+}
+
+/**
+ * Overdue balances bucketed by how many days past due they are, measured as of
+ * `asOf` ('YYYY-MM-DD'). Only `status === 'overdue'` charges count; a charge due
+ * in the future (negative age) is skipped. Buckets: 0–30, 31–60, 61–90, 90+.
+ */
+export function agingBuckets(
+  charges: Pick<ChargeRow, 'status' | 'amount' | 'due_date'>[],
+  asOf: string,
+): AgingBucket[] {
+  const buckets = [
+    { label: '0–30', min: 0, max: 30, amount: 0, count: 0 },
+    { label: '31–60', min: 31, max: 60, amount: 0, count: 0 },
+    { label: '61–90', min: 61, max: 90, amount: 0, count: 0 },
+    { label: '90+', min: 91, max: Infinity, amount: 0, count: 0 },
+  ];
+  for (const c of charges) {
+    if (c.status !== 'overdue') continue;
+    const age = daysBetween(c.due_date, asOf);
+    if (age < 0) continue;
+    const b = buckets.find((x) => age >= x.min && age <= x.max);
+    if (b) {
+      b.amount += c.amount;
+      b.count += 1;
+    }
+  }
+  return buckets.map(({ label, amount, count }) => ({ label, amount, count }));
+}
+
+// --------------------------------------------------------------------------
+// Domain: lease expiry
+// --------------------------------------------------------------------------
+
+/**
+ * Count leases whose `lease_end_date` falls in each of `months` consecutive
+ * months starting at `fromMonth` ('YYYY-MM'). Months with no expiries report 0,
+ * so the series is dense (good for a bar/timeline axis).
+ */
+export function leaseExpiryByMonth(
+  leases: { lease_end_date: string }[],
+  fromMonth: string,
+  months: number,
+): { period: string; count: number }[] {
+  const [y0, m0] = fromMonth.split('-').map(Number);
+  const keys: string[] = [];
+  for (let i = 0; i < Math.max(0, months); i++) {
+    const total = y0 * 12 + (m0 - 1) + i;
+    const y = Math.floor(total / 12);
+    const m = (total % 12) + 1;
+    keys.push(`${y}-${String(m).padStart(2, '0')}`);
+  }
+  const counts = new Map(keys.map((k) => [k, 0]));
+  for (const l of leases) {
+    const p = periodOf(l.lease_end_date);
+    const cur = counts.get(p);
+    if (cur !== undefined) counts.set(p, cur + 1);
+  }
+  return keys.map((k) => ({ period: k, count: counts.get(k) ?? 0 }));
+}

@@ -51,6 +51,51 @@ export function initialFilters(now: Date = new Date()): FilterState {
   return { preset: 'last_12', from, to, propertyId: 'all', tenantId: 'all' };
 }
 
+const PRESETS: DatePreset[] = ['this_month', 'this_year', 'last_12', 'all', 'custom'];
+
+/**
+ * Serialize the filter state (+ active tab) into flat URL query params. Only
+ * non-default values are emitted so shared links stay short; the custom range
+ * is emitted only when the preset is `custom`.
+ */
+export function serializeFilters(f: FilterState, tab: string): Record<string, string> {
+  const p: Record<string, string> = { tab, preset: f.preset };
+  if (f.preset === 'custom') {
+    p.from = f.from;
+    p.to = f.to;
+  }
+  if (f.propertyId !== 'all') p.prop = String(f.propertyId);
+  if (f.tenantId !== 'all') p.tenant = String(f.tenantId);
+  return p;
+}
+
+/**
+ * Inverse of {@link serializeFilters}: rebuild a `FilterState` from URL params,
+ * falling back to sensible defaults (last 12 months, all). Non-custom presets
+ * re-derive their range from `now` so a shared link stays relative.
+ */
+export function parseFilters(params: URLSearchParams, now: Date = new Date()): FilterState {
+  const raw = params.get('preset');
+  const preset: DatePreset = raw && PRESETS.includes(raw as DatePreset) ? (raw as DatePreset) : 'last_12';
+  let from: string;
+  let to: string;
+  if (preset === 'custom') {
+    from = params.get('from') ?? '0000-01';
+    to = params.get('to') ?? '9999-12';
+  } else {
+    ({ from, to } = resolveRange(preset, now));
+  }
+  const prop = params.get('prop');
+  const tenant = params.get('tenant');
+  return {
+    preset,
+    from,
+    to,
+    propertyId: prop && /^\d+$/.test(prop) ? Number(prop) : 'all',
+    tenantId: tenant && /^\d+$/.test(tenant) ? Number(tenant) : 'all',
+  };
+}
+
 export interface DropdownOption {
   value: number | 'all';
   label: string;

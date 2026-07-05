@@ -79,6 +79,7 @@ export function RevenueCharts({
         subtitle="Rent charged versus rent actually paid, by month"
         full
         empty={noData}
+        exportRows={{ filename: 'revenue-billed-vs-collected', rows: trend }}
       >
         <ComposedChart data={trend} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
@@ -104,6 +105,7 @@ export function RevenueCharts({
         subtitle="Share of billed rent collected each month (95% target)"
         full
         empty={noData}
+        exportRows={{ filename: 'collection-rate', rows: trend }}
       >
         <LineChart data={trend} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
           <CartesianGrid stroke={GRID_STROKE} vertical={false} />
@@ -131,7 +133,12 @@ export function RevenueCharts({
         </LineChart>
       </ChartCard>
 
-      <ChartCard title="Revenue by property" subtitle="Total collected, top properties" empty={byProperty.length === 0}>
+      <ChartCard
+        title="Revenue by property"
+        subtitle="Total collected, top properties"
+        empty={byProperty.length === 0}
+        exportRows={{ filename: 'revenue-by-property', rows: byProperty }}
+      >
         {hbar({
           data: byProperty,
           color: HARMAAL.blue,
@@ -141,7 +148,12 @@ export function RevenueCharts({
         })}
       </ChartCard>
 
-      <ChartCard title="Payment method mix" subtitle="Collected rent by how it was paid" empty={byMethod.length === 0}>
+      <ChartCard
+        title="Payment method mix"
+        subtitle="Collected rent by how it was paid"
+        empty={byMethod.length === 0}
+        exportRows={{ filename: 'payment-method-mix', rows: byMethod }}
+      >
         {donut({ data: byMethod, tooltip: <MoneyTooltip />, isMobile })}
       </ChartCard>
 
@@ -149,6 +161,7 @@ export function RevenueCharts({
         title="Charge status"
         subtitle="Every charge in range by paid / pending / overdue"
         empty={byStatus.length === 0}
+        exportRows={{ filename: 'charge-status', rows: byStatus }}
       >
         {donut({ data: byStatus, tooltip: <CountTooltip />, isMobile, colorLookup: STATUS_COLORS })}
       </ChartCard>
