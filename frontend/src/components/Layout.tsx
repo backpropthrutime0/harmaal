@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../authStore';
+import { useT, type MessageKey } from '../i18n';
+import { LanguageSwitcher } from './LanguageSwitcher';
 
 interface LayoutProps {
   children: ReactNode;
@@ -9,7 +11,8 @@ interface LayoutProps {
 
 interface NavItem {
   to: string;
-  label: string;
+  /** i18n key for the link label. */
+  labelKey: MessageKey;
   icon: string;
   /** Match the path exactly (for index-style routes like /portal). */
   end?: boolean;
@@ -22,7 +25,7 @@ interface NavItem {
 }
 
 interface NavSection {
-  heading: string;
+  headingKey: MessageKey;
   items: NavItem[];
 }
 
@@ -31,30 +34,33 @@ interface NavSection {
 // the user can actually open.
 const STAFF_NAV: NavSection[] = [
   {
-    heading: 'Overview',
-    items: [{ to: '/dashboard', label: 'Dashboard', icon: '📊' }],
+    headingKey: 'nav.section.overview',
+    items: [{ to: '/dashboard', labelKey: 'nav.dashboard', icon: '📊' }],
   },
   {
-    heading: 'Portfolio',
+    headingKey: 'nav.section.portfolio',
     items: [
-      { to: '/properties', label: 'Properties', icon: '🏢', permission: 'manage_properties' },
-      { to: '/financials', label: 'Financials', icon: '💰', permission: 'manage_tenants' },
-      { to: '/work-orders', label: 'Maintenance', icon: '🔧', permission: 'manage_maintenance' },
+      { to: '/properties', labelKey: 'nav.properties', icon: '🏢', permission: 'manage_properties' },
+      { to: '/financials', labelKey: 'nav.financials', icon: '💰', permission: 'manage_tenants' },
+      { to: '/work-orders', labelKey: 'nav.maintenance', icon: '🔧', permission: 'manage_maintenance' },
     ],
   },
   {
-    heading: 'Insights',
-    items: [{ to: '/analytics', label: 'Analytics', icon: '📈', permission: 'view_business' }],
+    headingKey: 'nav.section.insights',
+    items: [{ to: '/analytics', labelKey: 'nav.analytics', icon: '📈', permission: 'view_business' }],
   },
   {
-    heading: 'Administration',
-    items: [{ to: '/people', label: 'People', icon: '👥', permission: 'admin' }],
-  },
-  {
-    heading: 'Account',
+    headingKey: 'nav.section.administration',
     items: [
-      { to: '/profile', label: 'Profile', icon: '👤' },
-      { to: '/security', label: 'Security', icon: '🔒' },
+      { to: '/employees', labelKey: 'nav.employees', icon: '🧑‍💼', permission: 'manage_staff' },
+      { to: '/people', labelKey: 'nav.people', icon: '👥', permission: 'admin' },
+    ],
+  },
+  {
+    headingKey: 'nav.section.account',
+    items: [
+      { to: '/profile', labelKey: 'nav.profile', icon: '👤' },
+      { to: '/security', labelKey: 'nav.security', icon: '🔒' },
     ],
   },
 ];
@@ -62,37 +68,38 @@ const STAFF_NAV: NavSection[] = [
 // Tenant self-service portal.
 const TENANT_NAV: NavSection[] = [
   {
-    heading: 'My Home',
+    headingKey: 'nav.section.myHome',
     items: [
-      { to: '/portal', label: 'Overview', icon: '🏠', end: true },
-      { to: '/portal/payments', label: 'Payments', icon: '💳' },
-      { to: '/portal/maintenance', label: 'Maintenance', icon: '🔧' },
+      { to: '/portal', labelKey: 'nav.portalOverview', icon: '🏠', end: true },
+      { to: '/portal/payments', labelKey: 'nav.payments', icon: '💳' },
+      { to: '/portal/maintenance', labelKey: 'nav.maintenance', icon: '🔧' },
     ],
   },
   {
-    heading: 'Account',
+    headingKey: 'nav.section.account',
     items: [
-      { to: '/profile', label: 'Profile', icon: '👤' },
-      { to: '/security', label: 'Security', icon: '🔒' },
+      { to: '/profile', labelKey: 'nav.profile', icon: '👤' },
+      { to: '/security', labelKey: 'nav.security', icon: '🔒' },
     ],
   },
 ];
 
-const ROLE_LABEL: Record<string, string> = {
-  admin: 'Administrator',
-  owner: 'Owner',
-  manager: 'Management',
-  maintenance: 'Maintenance',
-  tenant: 'Resident',
+const ROLE_LABEL_KEY: Record<string, MessageKey> = {
+  admin: 'role.admin',
+  owner: 'role.owner',
+  manager: 'role.manager',
+  maintenance: 'role.maintenance',
+  tenant: 'role.tenant',
 };
 
 export default function Layout({ children }: LayoutProps): ReactElement {
   const navigate = useNavigate();
+  const t = useT();
   const { user, clearSession, hasPermission } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const role = user?.role ?? 'tenant';
-  const roleLabel = ROLE_LABEL[role] ?? 'Portal';
+  const roleLabel = t(ROLE_LABEL_KEY[role] ?? 'role.portal');
 
   // Tenants get the portal; everyone else gets the permission-filtered staff nav.
   const sections = role === 'tenant' ? TENANT_NAV : STAFF_NAV;
@@ -114,17 +121,27 @@ export default function Layout({ children }: LayoutProps): ReactElement {
   const sidebar = (
     <aside className="w-64 max-w-[85vw] shrink-0 bg-harmaal-blue text-white flex flex-col shadow-2xl pt-safe pb-safe pl-safe">
       <div className="p-6 border-b border-white/10">
-        <div className="text-2xl font-bold tracking-tighter text-white">HARMAAL</div>
-        <div className="text-[10px] text-harmaal-gold mt-1 uppercase tracking-widest font-bold">
-          {roleLabel}
-        </div>
+        {/* The wordmark doubles as a shortcut back to the public homepage. */}
+        <button
+          type="button"
+          onClick={() => {
+            setMobileOpen(false);
+            navigate('/');
+          }}
+          className="text-left w-full rounded-xl transition hover:opacity-90"
+        >
+          <div className="text-2xl font-bold tracking-tighter text-white">HARMAAL</div>
+          <div className="text-[10px] text-harmaal-gold mt-1 uppercase tracking-widest font-bold">
+            {roleLabel}
+          </div>
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-8">
         {visibleSections.map((section) => (
-          <div key={section.heading}>
+          <div key={section.headingKey}>
             <div className="px-4 pb-3 text-[10px] font-bold uppercase tracking-widest text-white/40">
-              {section.heading}
+              {t(section.headingKey)}
             </div>
             <div className="space-y-1.5">
               {section.items.map((item) => (
@@ -142,7 +159,7 @@ export default function Layout({ children }: LayoutProps): ReactElement {
                   }
                 >
                   <span className="text-lg leading-none">{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span>{t(item.labelKey)}</span>
                 </NavLink>
               ))}
             </div>
@@ -158,7 +175,7 @@ export default function Layout({ children }: LayoutProps): ReactElement {
           onClick={handleLogout}
           className="w-full text-left px-4 py-3 rounded-2xl text-white/50 hover:bg-red-500/20 hover:text-white transition font-medium"
         >
-          🚪 Sign Out
+          🚪 {t('nav.signOut')}
         </button>
       </div>
     </aside>
@@ -191,11 +208,25 @@ export default function Layout({ children }: LayoutProps): ReactElement {
             >
               ☰
             </button>
-            <span className="text-harmaal-blue/60 text-xs font-bold uppercase tracking-widest">
-              {roleLabel} Workspace
+            {/* Home shortcut — returns to the main public homepage from any page. */}
+            <button
+              onClick={() => navigate('/')}
+              className="text-harmaal-blue text-lg leading-none p-2 rounded-xl hover:bg-slate-100 transition"
+              aria-label={t('nav.home')}
+              title={t('nav.home')}
+            >
+              🏠
+            </button>
+            <span className="hidden sm:inline text-harmaal-blue/60 text-xs font-bold uppercase tracking-widest">
+              {t('nav.workspace', { role: roleLabel })}
             </span>
           </div>
-          <span className="text-slate-400 text-xs truncate max-w-[50%]">{user?.email}</span>
+          <div className="flex items-center gap-3">
+            <LanguageSwitcher />
+            <span className="hidden sm:inline text-slate-400 text-xs truncate max-w-[30vw]">
+              {user?.email}
+            </span>
+          </div>
         </div>
         <div className="flex-1 overflow-auto">{children}</div>
       </main>

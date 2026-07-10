@@ -138,6 +138,7 @@ export interface Tenant {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
   rent_amount: number;
   lease_start_date: string;
   lease_end_date: string;

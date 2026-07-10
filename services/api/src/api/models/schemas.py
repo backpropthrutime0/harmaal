@@ -99,6 +99,13 @@ class CreateUserRequest(BaseModel):
     email: str
     role: str = "owner"
     display_name: str | None = None
+    phone: str | None = None
+
+    @field_validator("display_name", "phone")
+    @classmethod
+    def blank_to_none(cls, v: str | None) -> str | None:
+        v = v.strip() if v else v
+        return v or None
 
     @field_validator("email")
     @classmethod
@@ -276,10 +283,17 @@ class TenantCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: str
     email: str
+    phone: str | None = None
     rent_amount: float
     lease_start_date: str
     lease_end_date: str
     unit_label: str | None = None
+
+    @field_validator("phone", "unit_label")
+    @classmethod
+    def blank_to_none(cls, v: str | None) -> str | None:
+        v = v.strip() if v else v
+        return v or None
 
 
 class TenantResponse(BaseModel):
@@ -287,6 +301,7 @@ class TenantResponse(BaseModel):
     id: int
     name: str
     email: str
+    phone: str | None = None
     rent_amount: float
     lease_start_date: str
     lease_end_date: str

@@ -175,6 +175,27 @@ class RequirePermission:
         return user
 
 
+class RequireAnyPermission:
+    """Dependency that passes if the user holds ANY of the given permissions.
+
+    Used where multiple roles legitimately reach an endpoint (e.g. both full
+    IAM admins and staff managers manage users). Also smooths permission
+    additions: a newly-seeded permission need not be present in already-issued
+    JWTs as long as the caller still carries one of the accepted alternatives.
+    """
+
+    def __init__(self, *permissions: str) -> None:
+        self.permissions = permissions
+
+    async def __call__(self, user: Annotated[TokenData, Depends(get_current_user)]) -> TokenData:
+        if not any(user.has_permission(p) for p in self.permissions):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission required: one of {', '.join(self.permissions)}",
+            )
+        return user
+
+
 class RequireRole:
     """Class-based dependency that asserts the coarse role."""
 

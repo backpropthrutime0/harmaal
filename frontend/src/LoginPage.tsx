@@ -1,14 +1,18 @@
 import { useState } from 'react';
+import type { ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './authStore';
 import { login, verify2fa, errorMessage, type LoginResult } from './auth/authApi';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
+import { useT } from './i18n';
 
 interface LoginPageProps {
   /** Tenant entry point: no staff portal tabs, offers registration. */
   tenant?: boolean;
 }
 
-export default function LoginPage({ tenant = false }: LoginPageProps) {
+export default function LoginPage({ tenant = false }: LoginPageProps): ReactElement {
+  const t = useT();
   const [step, setStep] = useState<'credentials' | 'mfa'>('credentials');
   const [portal, setPortal] = useState<'admin' | 'management' | 'maintenance'>('management');
   const [email, setEmail] = useState('');
@@ -22,7 +26,7 @@ export default function LoginPage({ tenant = false }: LoginPageProps) {
 
   const finish = (result: LoginResult) => {
     if (!result.access_token || !result.user) {
-      setError('Unexpected response from server.');
+      setError(t('login.unexpected'));
       return;
     }
     setSession(result.access_token, result.user);
@@ -50,7 +54,7 @@ export default function LoginPage({ tenant = false }: LoginPageProps) {
         finish(result);
       }
     } catch (err) {
-      setError(errorMessage(err, 'Invalid credentials. Please try again.'));
+      setError(errorMessage(err, t('login.invalidCreds')));
     } finally {
       setLoading(false);
     }
@@ -63,38 +67,38 @@ export default function LoginPage({ tenant = false }: LoginPageProps) {
     try {
       finish(await verify2fa(mfaToken, code));
     } catch (err) {
-      setError(errorMessage(err, 'Invalid or expired code.'));
+      setError(errorMessage(err, t('login.invalidCode')));
     } finally {
       setLoading(false);
     }
   };
 
+  const title =
+    step === 'mfa' ? t('login.mfaTitle') : tenant ? t('login.tenantTitle') : t('login.mgmtTitle');
+  const subtitle =
+    step === 'mfa'
+      ? t('login.mfaSubtitle')
+      : tenant
+        ? t('login.tenantSubtitle')
+        : t('login.mgmtSubtitle');
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-50 px-6">
+      <div className="absolute right-4 top-4 sm:right-8 sm:top-6">
+        <LanguageSwitcher />
+      </div>
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            {step === 'mfa'
-              ? 'Two-Factor Verification'
-              : tenant
-                ? 'Tenant Sign In'
-                : 'Management'}
-          </h1>
-          <p className="text-slate-500">
-            {step === 'mfa'
-              ? 'Enter the 6-digit code from your authenticator app.'
-              : tenant
-                ? 'Sign in to your resident portal.'
-                : 'Sign in to your Harmaal workspace.'}
-          </p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">{title}</h1>
+          <p className="text-slate-500">{subtitle}</p>
         </div>
 
         {step === 'credentials' && !tenant && (
           <div className="flex bg-slate-100 p-1 rounded-xl mb-8">
             {([
-              ['admin', 'Admin'],
-              ['management', 'Management'],
-              ['maintenance', 'Maintenance'],
+              ['admin', t('login.tabAdmin')],
+              ['management', t('login.tabManagement')],
+              ['maintenance', t('login.tabMaintenance')],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
@@ -117,7 +121,9 @@ export default function LoginPage({ tenant = false }: LoginPageProps) {
         {step === 'credentials' ? (
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Email Address</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                {t('login.emailLabel')}
+              </label>
               <input
                 type="email"
                 required
@@ -128,7 +134,9 @@ export default function LoginPage({ tenant = false }: LoginPageProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Password</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                {t('login.passwordLabel')}
+              </label>
               <input
                 type="password"
                 required
@@ -143,13 +151,15 @@ export default function LoginPage({ tenant = false }: LoginPageProps) {
               disabled={loading}
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-md disabled:opacity-60"
             >
-              {loading ? 'Signing in…' : 'Sign In'}
+              {loading ? t('login.signingIn') : t('login.signIn')}
             </button>
           </form>
         ) : (
           <form onSubmit={handleVerify} className="space-y-6">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Authentication Code</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">
+                {t('login.codeLabel')}
+              </label>
               <input
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -167,7 +177,7 @@ export default function LoginPage({ tenant = false }: LoginPageProps) {
               disabled={loading}
               className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-md disabled:opacity-60"
             >
-              {loading ? 'Verifying…' : 'Verify'}
+              {loading ? t('login.verifying') : t('login.verify')}
             </button>
             <button
               type="button"
@@ -178,16 +188,16 @@ export default function LoginPage({ tenant = false }: LoginPageProps) {
               }}
               className="w-full text-slate-500 text-sm hover:text-slate-700"
             >
-              ← Back to login
+              {t('login.backToLogin')}
             </button>
           </form>
         )}
 
         {step === 'credentials' && tenant && (
           <div className="mt-8 text-center text-sm text-slate-500">
-            New here?{' '}
+            {t('login.newHere')}{' '}
             <Link to="/register" className="text-blue-600 font-semibold hover:underline">
-              Become a tenant
+              {t('login.becomeTenant')}
             </Link>
           </div>
         )}

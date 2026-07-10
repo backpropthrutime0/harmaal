@@ -116,13 +116,18 @@ export interface AdminUserRow {
   email: string;
   role: string;
   display_name: string | null;
+  phone?: string | null;
   is_active: boolean;
   totp_enabled: boolean;
   permissions: string[];
 }
 export const listUsers = () => api.get<AdminUserRow[]>('/auth/users').then((r) => r.data);
-export const createUser = (body: { email: string; role: string; display_name?: string }) =>
-  api.post<{ user: AdminUserRow; generated_otp: string }>('/auth/users', body).then((r) => r.data);
+export const createUser = (body: {
+  email: string;
+  role: string;
+  display_name?: string;
+  phone?: string;
+}) => api.post<{ user: AdminUserRow; generated_otp: string }>('/auth/users', body).then((r) => r.data);
 
 // --- maintenance staff (manager-accessible, for assignment dropdowns) ---
 export interface MaintenanceStaff {

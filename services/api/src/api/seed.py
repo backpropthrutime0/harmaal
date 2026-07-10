@@ -18,6 +18,7 @@ from api.models.orm import Permission, Role, User
 # permission name -> description
 PERMISSIONS: dict[str, str] = {
     "admin": "Full IAM / user management",
+    "manage_staff": "Create and manage staff employees (non-admin roles)",
     "manage_properties": "Create, update, and delete properties",
     "manage_tenants": "Manage tenants and collect rent",
     "view_business": "View business intelligence summary",
@@ -27,9 +28,23 @@ PERMISSIONS: dict[str, str] = {
 # role name -> permission names
 # Staff access portal roles: admin, manager (management employees), maintenance.
 # owner/tenant remain for self-registration and the tenant portal.
+# manage_staff lets managers onboard employees; admins keep full IAM via "admin".
 ROLES: dict[str, list[str]] = {
-    "admin": ["admin", "manage_properties", "manage_tenants", "view_business", "manage_maintenance"],
-    "manager": ["manage_properties", "manage_tenants", "view_business", "manage_maintenance"],
+    "admin": [
+        "admin",
+        "manage_staff",
+        "manage_properties",
+        "manage_tenants",
+        "view_business",
+        "manage_maintenance",
+    ],
+    "manager": [
+        "manage_staff",
+        "manage_properties",
+        "manage_tenants",
+        "view_business",
+        "manage_maintenance",
+    ],
     "maintenance": ["manage_maintenance"],
     "owner": ["manage_properties", "manage_tenants", "view_business"],
     "tenant": [],

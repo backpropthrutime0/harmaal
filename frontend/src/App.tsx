@@ -16,6 +16,7 @@ import Financials from './Financials';
 import WorkOrders from './WorkOrders';
 import WorkOrderDetail from './WorkOrderDetail';
 import People from './People';
+import Employees from './Employees';
 import TenantPortal from './TenantPortal';
 import TenantPayments from './TenantPayments';
 import TenantMaintenance from './TenantMaintenance';
@@ -61,6 +62,9 @@ export default function App() {
         {/* Work orders — list for staff+maintenance; detail accessible to any involved party */}
         <Route path="/work-orders" element={<PrivateRoute permission="manage_maintenance"><Layout><WorkOrders /></Layout></PrivateRoute>} />
         <Route path="/work-orders/:id" element={<PrivateRoute><Layout><WorkOrderDetail /></Layout></PrivateRoute>} />
+
+        {/* Employees (manage_staff: managers onboard staff; admins may also use it) */}
+        <Route path="/employees" element={<PrivateRoute permission="manage_staff"><Layout><Employees /></Layout></PrivateRoute>} />
 
         {/* People / IAM (admin) */}
         <Route path="/people" element={<PrivateRoute permission="admin"><Layout><People /></Layout></PrivateRoute>} />

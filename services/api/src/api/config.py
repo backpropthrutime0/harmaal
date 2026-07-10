@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     # Create tables on startup instead of relying on Alembic (handy for quick
     # local dev / tests). Production runs `alembic upgrade head` and leaves this off.
     auto_create_tables: bool = False
+    # Populate the shared demo dataset (properties, tenants, staff logins, rent
+    # ledger, work orders) on first boot when the DB is empty. On by default so a
+    # fresh `docker compose up` gives every collaborator the same working demo
+    # accounts; automatically skipped in production. Non-destructive: only runs
+    # when there is no business data yet.
+    seed_demo_data: bool = True
     frontend_url: str = "http://localhost:5173"
     cors_origins: str = "http://localhost:5173"
 

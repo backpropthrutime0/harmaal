@@ -42,7 +42,11 @@ cd frontend && npx tsc --noEmit && npm run build
 - JWT HS256 only; MFA-stage tokens can't access the API. TOTP `valid_window=1`; secret returned only at setup (Core scope: stored plaintext — harden with pgcrypto later). bcrypt + dummy-hash timing defense. Never serialize `hashed_password`/`totp_secret`. CORS limited to `settings.cors_origins`.
 
 ## Key endpoints
-`POST /auth/register` · `POST /auth/login` · `POST /auth/verify-2fa` · `POST /auth/setup-totp` · `POST /auth/confirm-totp` · `DELETE /auth/totp` · `POST /auth/change-password` · `GET /auth/me` · `GET/POST /auth/users` (admin) · property/tenant/payment CRUD · `GET /business/summary` (perm `view_business`) · `GET /tenants/me` (tenant portal).
+`POST /auth/register` · `POST /auth/login` · `POST /auth/verify-2fa` · `POST /auth/setup-totp` · `POST /auth/confirm-totp` · `DELETE /auth/totp` · `POST /auth/change-password` · `GET /auth/me` · `GET/POST /auth/users` (perm `manage_staff` or `admin`; non-admins may only create/see staff roles) · property/tenant/payment CRUD · `GET /business/summary` (perm `view_business`) · `GET /tenants/me` (tenant portal).
+
+## Staff onboarding & i18n
+- **Employees** (`/employees`, perm `manage_staff`): managers onboard employees. Non-admins may only *create* `maintenance` (`STAFF_ASSIGNABLE_ROLES` in `routers/auth.py`) — only admins mint `manager` peers — but may *view* both staff roles (`STAFF_VISIBLE_ROLES`). Full IAM stays on `/people` (perm `admin`).
+- **i18n** (`frontend/src/i18n/`): hand-rolled bilingual store — **Somali default**, English fallback. `useT()` hook + `LanguageSwitcher`; strings live in `messages.ts` as `{ en, so }`. Somali uses Latin script (no RTL).
 
 ## Seeded data
-On startup `seed.py` creates roles (`admin`, `owner`, `tenant`), permissions (`admin`, `manage_properties`, `manage_tenants`, `view_business`), and a root admin from `ROOT_EMAIL`/`ROOT_PASSWORD`.
+On startup `seed.py` creates roles (`admin`, `owner`, `manager`, `maintenance`, `tenant`), permissions (`admin`, `manage_staff`, `manage_properties`, `manage_tenants`, `view_business`, `manage_maintenance`), and a root admin from `ROOT_EMAIL`/`ROOT_PASSWORD`.

@@ -16,6 +16,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.config import settings
 from api.db import AsyncSessionFactory, Base, engine
+from api.mock_data import seed_demo_if_empty
 from api.routers import (
     auth,
     dashboards,
@@ -36,6 +37,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             await conn.run_sync(Base.metadata.create_all)
     async with AsyncSessionFactory() as session:
         await seed(session)
+    # First-boot demo data so a fresh checkout has working staff/tenant logins,
+    # not just the root admin. Skipped in production and once data exists.
+    if settings.seed_demo_data and settings.environment != "production":
+        await seed_demo_if_empty()
     yield
 
 

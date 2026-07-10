@@ -113,6 +113,7 @@ class Tenant(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, index=True)
     email: Mapped[str] = mapped_column(String)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     rent_amount: Mapped[float] = mapped_column(Float)
     lease_start_date: Mapped[str] = mapped_column(String)
     lease_end_date: Mapped[str] = mapped_column(String)

@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 from api.config import settings
 from api.db import get_session
 from api.internal.auth import (
+    RequireAnyPermission,
     RequirePermission,
     TokenData,
     create_access_token,
@@ -105,6 +106,18 @@ def _generate_otp() -> str:
     chars = required + remaining
     secrets.SystemRandom().shuffle(chars)
     return "".join(chars)
+
+
+# Roles a non-admin staff manager (holds "manage_staff" but not "admin") may see
+# in the roster. Excludes admin/owner/tenant so managers never view privileged
+# or resident accounts.
+STAFF_VISIBLE_ROLES = {"manager", "maintenance"}
+
+# Roles a non-admin staff manager may CREATE. Deliberately narrower than what
+# they can view: excludes "manager" so only full admins can mint privileged
+# manager peers. This prevents a compromised manager from self-replicating its
+# own permission set (manage_staff + business access) for persistence.
+STAFF_ASSIGNABLE_ROLES = {"maintenance"}
 
 
 def _user_out(user: User) -> UserResponse:
@@ -329,20 +342,34 @@ async def me(
 
 @router.get("/users", response_model=list[UserResponse])
 async def list_users(
-    _: Annotated[TokenData, Depends(RequirePermission("admin"))],
+    actor: Annotated[TokenData, Depends(RequireAnyPermission("admin", "manage_staff"))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[UserResponse]:
+    """List users. Full IAM admins see everyone; staff managers see only the
+    non-admin employees they are allowed to manage."""
     users = (await session.execute(select(User).order_by(User.id))).scalars().all()
+    if not actor.has_permission("admin"):
+        users = [u for u in users if u.role in STAFF_VISIBLE_ROLES]
     return [_user_out(u) for u in users]
 
 
 @router.post("/users", response_model=CreateUserResponse, status_code=201)
 async def create_user(
     body: CreateUserRequest,
-    _: Annotated[TokenData, Depends(RequirePermission("admin"))],
+    actor: Annotated[TokenData, Depends(RequireAnyPermission("admin", "manage_staff"))],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> CreateUserResponse:
-    """Admin-creates an account with a generated one-time password (must change on first login)."""
+    """Create an account with a generated one-time password (must change on first login).
+
+    Full IAM admins may create any role. Staff managers (``manage_staff`` without
+    ``admin``) may only onboard non-privileged employees, guarding against a
+    manager minting an admin/owner account and escalating their own access.
+    """
+    if not actor.has_permission("admin") and body.role not in STAFF_ASSIGNABLE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You may only create staff employees ({', '.join(sorted(STAFF_ASSIGNABLE_ROLES))})",
+        )
     if await _get_user_by_email(body.email, session):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
     otp = _generate_otp()
@@ -352,6 +379,7 @@ async def create_user(
         hashed_password=hash_password(otp),
         role=body.role,
         display_name=body.display_name,
+        phone=body.phone,
         must_change_password=True,
         is_otp=True,
         password_changed_at=datetime.now(UTC),

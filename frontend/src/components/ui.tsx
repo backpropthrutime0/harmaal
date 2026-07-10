@@ -177,11 +177,13 @@ const BADGE_TONES: Record<string, string> = {
   emergency: 'bg-red-100 text-red-700',
 };
 
-export function Badge({ value }: { value: string }) {
+export function Badge({ value, label }: { value: string; label?: string }) {
+  // `value` drives the color tone (stable slug); `label` overrides the visible
+  // text so callers can pass a translated role/status name without losing tone.
   const tone = BADGE_TONES[value] ?? 'bg-slate-100 text-slate-600';
   return (
     <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${tone}`}>
-      {value.replace('_', ' ')}
+      {label ?? value.replace('_', ' ')}
     </span>
   );
 }

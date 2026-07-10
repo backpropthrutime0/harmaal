@@ -34,6 +34,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-harmaal_admin}:${POSTGRES_PASSWORD:-supersecretpassword}@db:5432/${POSTGRES_DB:-harmaal_erp}
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      # First-boot demo data (staff/tenant logins + business data) when the DB is
+      # empty. Default on for local dev; set false to boot with only the root admin.
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
       JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_IN_PRODUCTION_at_least_32_chars_xx}
       JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-8}
       TOTP_ISSUER: ${TOTP_ISSUER:-Harmaal}

@@ -199,6 +199,7 @@ async def build() -> None:
             tenant = Tenant(
                 name=name,
                 email=email.lower(),
+                phone=f"+252 63 {random.randint(4000000, 4999999)}",
                 rent_amount=rent,
                 lease_start_date=f"{periods[0][0]}-{periods[0][1]:02d}-01",
                 lease_end_date=f"{now.year + 1}-{now.month:02d}-01",
@@ -398,6 +399,23 @@ async def build() -> None:
         print(f"Maintenance:             {e} / {p}")
     print(f"Tenants (x10):           {TENANTS[0][1]} ... {TENANTS[-1][1]} / {TENANT_PASSWORD}")
     print("================================\n")
+
+
+async def seed_demo_if_empty() -> None:
+    """Populate the demo dataset on first boot only — idempotent and non-destructive.
+
+    Runs the full :func:`build` when the database has no properties yet, so a
+    fresh ``docker compose up`` yields the same demo staff/tenant logins and
+    business data for every collaborator. If any property already exists the
+    build is skipped, leaving existing data (and any local edits) untouched.
+    Called from the app lifespan; the ``python -m api.mock_data`` CLI still
+    forces a full wipe-and-rebuild.
+    """
+    async with AsyncSessionFactory() as session:
+        existing = (await session.execute(select(Property).limit(1))).scalar_one_or_none()
+    if existing is not None:
+        return
+    await build()
 
 
 if __name__ == "__main__":
