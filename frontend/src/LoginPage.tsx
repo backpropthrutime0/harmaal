@@ -84,6 +84,13 @@ export default function LoginPage({ tenant = false }: LoginPageProps): ReactElem
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-50 px-6">
+      <Link
+        to="/"
+        className="absolute left-4 top-4 sm:left-8 sm:top-6 flex items-center gap-1.5 text-slate-500 hover:text-harmaal-blue font-semibold text-sm px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition"
+      >
+        <span className="text-base leading-none">🏠</span>
+        <span>{t('nav.home')}</span>
+      </Link>
       <div className="absolute right-4 top-4 sm:right-8 sm:top-6">
         <LanguageSwitcher />
       </div>

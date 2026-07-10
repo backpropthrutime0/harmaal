@@ -33,7 +33,10 @@ export default function TenantPortal() {
 
   return (
     <div className="p-4 sm:p-8 max-w-4xl mx-auto">
-      <PageHeader title={`Welcome back, ${lease.name}`} subtitle={`Unit ${lease.unit_label ?? ''}`} />
+      <PageHeader
+        title={`Welcome back, ${lease.name}`}
+        subtitle={lease.unit_label ? `Unit ${lease.unit_label}` : 'Rental home'}
+      />
 
       {overdue.length > 0 && (
         <div

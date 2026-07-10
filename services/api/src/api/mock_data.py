@@ -5,6 +5,13 @@ Run inside the backend container:  python -m api.mock_data
 Idempotent: keeps staff accounts, wipes and recreates all business data
 (properties, tenants, rent ledger, work orders + message threads). Prints the
 demo credentials for every role at the end.
+
+Data model: standalone **rental houses**, one tenant per house (not an
+apartment complex). 50 occupied houses plus a handful of vacant listings, with
+deliberately wide variance — cheap→luxury rents, punctual→defaulting payers,
+pristine→money-pit repair histories, and staggered lease start dates — so every
+dashboard/analytics feature (occupancy over time, overdue follow-up, cash
+reconciliation, maintenance spend by property/tenant/month) has real signal.
 """
 
 from __future__ import annotations
@@ -38,26 +45,68 @@ MAINTENANCE = [
     ("maintenance@harmaal.local", "Fixit!Wrench42", "Carlos Rivera"),
     ("contractor2@harmaal.local", "Pipes!Toolbox88", "Dmitri Volkov"),
 ]
-TENANT_PASSWORD = "Tenant!2026Key"  # shared demo password for all 10 tenants
+TENANT_PASSWORD = "Tenant!2026Key"  # shared demo password for all tenants
 
-TENANTS = [
-    ("Amina Yusuf", "amina.yusuf@example.com"),
-    ("Liang Chen", "liang.chen@example.com"),
-    ("Sofia Rossi", "sofia.rossi@example.com"),
-    ("Marcus Johnson", "marcus.johnson@example.com"),
-    ("Priya Nair", "priya.nair@example.com"),
-    ("Oliver Brooks", "oliver.brooks@example.com"),
-    ("Fatima Al-Sayed", "fatima.alsayed@example.com"),
-    ("Noah Williams", "noah.williams@example.com"),
-    ("Yuki Tanaka", "yuki.tanaka@example.com"),
-    ("Grace Okafor", "grace.okafor@example.com"),
+# --- name & address pools (Somaliland flavour) ---
+FIRST_NAMES = [
+    "Amina", "Fadumo", "Hodan", "Ayaan", "Khadra", "Sagal", "Ubax", "Deqa",
+    "Ilhan", "Nasteexo", "Zamzam", "Hibaaq", "Muna", "Ruweyda", "Shukri",
+    "Warsan", "Asma", "Barwaaqo", "Canab", "Farhia", "Cabdi", "Maxamed",
+    "Axmed", "Ismaaciil", "Yuusuf", "Cali", "Xasan", "Xuseen", "Ibraahim",
+    "Maxamuud", "Cabdiraxmaan", "Faisal", "Guuleed", "Liibaan", "Cumar",
+    "Bashiir", "Daahir", "Jaamac", "Kaahin", "Sasyid", "Cabdulaahi", "Nuur",
+    "Rooble", "Diriye",
+]
+LAST_NAMES = [
+    "Yuusuf", "Farax", "Xaaji", "Diriye", "Cabdi", "Warsame", "Maxamed",
+    "Cige", "Ismaaciil", "Guuleed", "Nuur", "Kayse", "Samatar", "Xirsi",
+    "Ducaale", "Gaas", "Rooble", "Xasan", "Cabdilaahi", "Jaamac", "Boqor",
+    "Egeh", "Carte", "Ainanshe", "Dheere", "Qaasim", "Cawaale", "Baarud",
+    "Xirsi", "Maxamuud",
+]
+DISTRICTS = [
+    "26 June", "Ahmed Dhagax", "Ga'an Libaax", "Ibraahim Koodbuur",
+    "Maxamoud Haybe", "New Hargeisa", "Jigjiga Yar", "Sha'ab", "Koodbuur",
+    "Masalaha", "31 May", "Pepsi",
+]
+CITIES = ["Hargeysa"] * 9 + ["Berbera", "Burco", "Borama", "Gabiley"]
+
+# --- rent tiers: (label, min, max, count) — counts sum to 50 ---
+RENT_TIERS = [
+    ("budget", 250, 480, 9),
+    ("affordable", 520, 820, 14),
+    ("standard", 850, 1300, 15),
+    ("premium", 1500, 2600, 9),
+    ("luxury", 3200, 6000, 3),
 ]
 
-PROPERTIES = [
-    ("Cedar Court Apartments, 100 Cedar St", 12, "Mid-rise complex, 12 units"),
-    ("Maple Grove Residences, 250 Maple Ave", 8, "Garden-style apartments, 8 units"),
-    ("Harbor View Flats, 12 Marina Rd", 6, "Seafront block, 6 units"),
+# --- payer reliability profiles: (name, count) — counts sum to 50 ---
+PAYER_PROFILES = [
+    ("always_on_time", 17),
+    ("mostly_on_time", 12),
+    ("occasionally_late", 8),
+    ("recently_overdue", 6),
+    ("chronic_late", 5),
+    ("serial_defaulter", 2),
 ]
+
+# --- repair-history profiles: (name, min_wo, max_wo, count) — counts sum to 50 ---
+REPAIR_PROFILES = [
+    ("pristine", 0, 1, 8),
+    ("low", 2, 4, 15),
+    ("average", 5, 8, 16),
+    ("high", 10, 15, 8),
+    ("money_pit", 18, 26, 3),
+]
+
+# --- tenure in months (staggered lease starts) — list length 50 ---
+TENURES = (
+    [60] * 14 + [54] * 4 + [48] * 5 + [42] * 4 + [36] * 5 + [30] * 4
+    + [24] * 4 + [18] * 3 + [12] * 3 + [9] * 2 + [6] * 1 + [3] * 1
+)
+
+NUM_HOUSES = 50
+NUM_VACANT = 5
 
 WO_TEMPLATES = [
     ("Leaking kitchen faucet", "plumbing", "Constant drip under the kitchen sink, cabinet getting wet."),
@@ -88,7 +137,6 @@ PRIORITIES = ["low", "medium", "medium", "high", "emergency"]
 # breakdowns (this-month / this-year / all-time by property/tenant) have real data.
 YEARS = 5
 MONTHS = YEARS * 12
-NUM_WORK_ORDERS = 150
 # The manager reconciles the cash drawer monthly: older months are fully banked,
 # only the most recent months still hold undeposited cash. Cash-settled repairs
 # and expenses only happen within this window, so `cash_on_hand` never goes
@@ -106,6 +154,70 @@ def months_back(n: int) -> list[tuple[int, int]]:
         if m == 0:
             m, y = 12, y - 1
     return list(reversed(out))  # oldest -> newest
+
+
+def _expand(pairs: list[tuple]) -> list:
+    """Expand [(value, count), …] into a flat list, then shuffle for variety."""
+    out: list = []
+    for value, count in pairs:
+        out.extend([value] * count)
+    random.shuffle(out)
+    return out
+
+
+def _build_people() -> list[dict]:
+    """Deterministically assemble 50 tenant profiles: unique name, address, rent
+    tier, payer reliability, repair history, and tenure — each dimension shuffled
+    independently so the combinations vary widely."""
+    # Unique names
+    names: list[str] = []
+    seen: set[str] = set()
+    combos = [(fn, ln) for fn in FIRST_NAMES for ln in LAST_NAMES]
+    random.shuffle(combos)
+    for first, last in combos:
+        full = f"{first} {last}"
+        if full in seen:
+            continue
+        seen.add(full)
+        names.append(full)
+        if len(names) == NUM_HOUSES:
+            break
+
+    tiers = _expand([(t, c) for (t, _lo, _hi, c) in RENT_TIERS])
+    tier_range = {name: (lo, hi) for (name, lo, hi, _c) in RENT_TIERS}
+    payers = _expand([(p, c) for (p, c) in PAYER_PROFILES])
+    repairs = _expand([(r, c) for (r, _lo, _hi, c) in REPAIR_PROFILES])
+    repair_range = {name: (lo, hi) for (name, lo, hi, _c) in REPAIR_PROFILES}
+    tenures = list(TENURES)
+    random.shuffle(tenures)
+
+    people: list[dict] = []
+    for i in range(NUM_HOUSES):
+        first, last = names[i].split(" ", 1)
+        email = f"{first}.{last}".lower().replace("'", "").replace(" ", ".") + "@example.com"
+        lo, hi = tier_range[tiers[i]]
+        rent = round(random.randint(lo, hi) / 10) * 10
+        rlo, rhi = repair_range[repairs[i]]
+        people.append(
+            {
+                "name": names[i],
+                "email": email,
+                "phone": f"+252 63 {random.randint(4000000, 4999999)}",
+                "rent": float(rent),
+                "tier": tiers[i],
+                "payer": payers[i],
+                "repair_min": rlo,
+                "repair_max": rhi,
+                "tenure": tenures[i],
+            }
+        )
+    return people
+
+
+def _house_address(seq: int) -> str:
+    city = random.choice(CITIES)
+    district = random.choice(DISTRICTS)
+    return f"House {seq}, {district}, {city}"
 
 
 async def _get_or_create_user(session, email, password, display, role_name) -> User:
@@ -149,6 +261,63 @@ async def _wipe_business(session) -> None:
     await session.commit()
 
 
+def _payment_plan(n: int, payer: str) -> tuple[set[int], set[int]]:
+    """For a tenure of ``n`` months (index 0 = oldest, n-1 = current), return the
+    set of month indexes left unpaid (``pending`` → overdue once past due) and the
+    set paid late, according to the payer reliability profile."""
+    if n <= 0:
+        return set(), set()
+    pending: set[int] = set()
+    late: set[int] = set()
+    older = list(range(max(0, n - CASH_ON_HAND_MONTHS)))  # exclude live cash window from scatter
+    if payer == "always_on_time":
+        pass
+    elif payer == "mostly_on_time":
+        late = set(random.sample(range(n), k=min(n, random.randint(0, 2))))
+    elif payer == "occasionally_late":
+        late = set(random.sample(range(n), k=min(n, max(1, n // 6))))
+    elif payer == "recently_overdue":
+        pending = set(range(n - random.randint(1, 3), n))
+    elif payer == "chronic_late":
+        late = set(random.sample(range(n), k=min(n, max(1, n // 3))))
+        pending = set(range(n - random.randint(1, 2), n))
+    elif payer == "serial_defaulter":
+        pending = set(range(n - random.randint(4, 6), n))
+        if older:
+            pending |= set(random.sample(older, k=min(len(older), random.randint(1, 3))))
+    return pending, late
+
+
+def _build_thread(wo, manager, assignee, tenant_name, desc, created):
+    """Reconstruct a plausible message thread for a work order's status."""
+    thread: list[tuple[int | None, str, str, str]] = [
+        (wo.created_by, tenant_name, "tenant", f"Hi, {desc} Please help."),
+    ]
+    if wo.status != "open":
+        thread.append((manager.id, manager.display_name, "manager",
+                       f"Thanks for reporting. Assigning {assignee.display_name} to take a look."))
+    if wo.status in ("in_progress", "completed"):
+        thread.append((assignee.id, assignee.display_name, "maintenance",
+                       "On my way / inspecting the issue now."))
+    if wo.status == "completed":
+        thread.append((assignee.id, assignee.display_name, "maintenance",
+                       f"Repair complete. Cost ${wo.cost:.0f}. Replaced/fixed the affected part."))
+        thread.append((manager.id, manager.display_name, "manager",
+                       "Confirmed completed and notified the tenant. Closing this out."))
+    if wo.status == "cancelled":
+        thread.append((manager.id, manager.display_name, "manager",
+                       "Tenant resolved it themselves. Cancelling the work order."))
+    msgs = []
+    t = created
+    for aid, aname, arole, body in thread:
+        t = t + timedelta(hours=random.randint(2, 36))
+        msgs.append(WorkOrderMessage(
+            work_order_id=wo.id, author_id=aid, author_name=aname,
+            author_role=arole, body=body, created_at=t,
+        ))
+    return msgs
+
+
 async def build() -> None:
     async with AsyncSessionFactory() as session:
         await seed(session)  # ensure roles/permissions + root admin exist
@@ -169,235 +338,180 @@ async def build() -> None:
 
         await _wipe_business(session)
 
-        # Properties
-        props = [Property(address=a, units=u, description=d, owner_id=manager.id) for a, u, d in PROPERTIES]
-        session.add_all(props)
-        await session.flush()
-
-        # Tenants (each gets a portal user) + rent ledger
-        periods = months_back(MONTHS)
         now = datetime.now(UTC)
-        # Months that still hold undeposited cash — the only ones that carry cash spend.
-        cash_window = {f"{y}-{m:02d}" for y, m in periods[-CASH_ON_HAND_MONTHS:]}
-        tenants: list[Tenant] = []
-        for i, (name, email) in enumerate(TENANTS):
-            prop = props[i % len(props)]
-            unit = f"{chr(65 + i % 3)}-{100 + i}"
-            rent = random.choice([850, 950, 1050, 1150, 1250, 1400])
+        full_periods = months_back(MONTHS)
+        cash_window = {f"{y}-{m:02d}" for y, m in full_periods[-CASH_ON_HAND_MONTHS:]}
+        tenant_role = (await session.execute(select(Role).where(Role.name == "tenant"))).scalar_one()
+
+        people = _build_people()
+        seq = 1
+
+        # One standalone house per tenant (units=1), staggered lease starts.
+        for person in people:
+            prop = Property(
+                address=_house_address(seq),
+                units=1,
+                description=f"Standalone rental home ({person['tier']} tier)",
+                owner_id=manager.id,
+            )
+            seq += 1
+            session.add(prop)
+            await session.flush()
+
+            tenure = person["tenure"]
+            periods = months_back(tenure)  # this tenant's active months
+            lease_start = f"{periods[0][0]}-{periods[0][1]:02d}-01"
+            # Lease end varies 2-24 months out, exercising the expiring-leases view.
+            end_off = random.randint(2, 24)
+            ey, em = now.year, now.month + end_off
+            ey += (em - 1) // 12
+            em = (em - 1) % 12 + 1
+            lease_end = f"{ey}-{em:02d}-01"
+
             t_user = User(
-                email=email.lower(),
+                email=person["email"],
                 hashed_password=hash_password(TENANT_PASSWORD),
                 role="tenant",
-                display_name=name,
+                display_name=person["name"],
+                phone=person["phone"],
                 password_changed_at=now,
             )
-            t_role = (await session.execute(select(Role).where(Role.name == "tenant"))).scalar_one()
-            t_user.roles = [t_role]
+            t_user.roles = [tenant_role]
             session.add(t_user)
             await session.flush()
 
             tenant = Tenant(
-                name=name,
-                email=email.lower(),
-                phone=f"+252 63 {random.randint(4000000, 4999999)}",
-                rent_amount=rent,
-                lease_start_date=f"{periods[0][0]}-{periods[0][1]:02d}-01",
-                lease_end_date=f"{now.year + 1}-{now.month:02d}-01",
-                unit_label=unit,
+                name=person["name"],
+                email=person["email"],
+                phone=person["phone"],
+                rent_amount=person["rent"],
+                lease_start_date=lease_start,
+                lease_end_date=lease_end,
+                unit_label=None,  # a whole house has no sub-unit
                 property_id=prop.id,
                 user_id=t_user.id,
             )
             session.add(tenant)
             await session.flush()
-            tenants.append(tenant)
 
-            # Rent ledger: default all paid; create overdue for a few tenants.
-            unpaid_recent = 0
-            if i in (2, 5):
-                unpaid_recent = 1
-            elif i == 7:
-                unpaid_recent = 2
+            # Rent ledger over the tenant's tenure, shaped by their payer profile.
+            pending_idx, late_idx = _payment_plan(tenure, person["payer"])
             for idx, (y, m) in enumerate(periods):
-                is_recent = idx >= len(periods) - unpaid_recent
                 due = f"{y}-{m:02d}-05"
+                period_str = f"{y}-{m:02d}"
+                if idx in pending_idx:
+                    session.add(Payment(
+                        amount=person["rent"], period=period_str, due_date=due,
+                        paid_date=None, status="pending", method=None,
+                        deposited=False, deposited_date=None, tenant_id=tenant.id,
+                    ))
+                    continue
+                day = random.randint(2, 4) if idx not in late_idx else random.randint(9, 27)
+                method = random.choice(["cash", "cash", "card", "transfer"])
                 deposited, deposited_date = False, None
-                if is_recent:
-                    status, paid_date, method = "pending", None, None
-                else:
-                    status = "paid"
-                    paid_date = f"{y}-{m:02d}-{random.randint(2, 9):02d}"
-                    method = random.choice(["cash", "cash", "card", "transfer"])
-                    # Cash from older months is already banked; the most recent
-                    # cash payments sit "on hand" for the manager to check off.
-                    if method == "cash" and idx < len(periods) - CASH_ON_HAND_MONTHS:
-                        deposited = True
-                        deposited_date = f"{y}-{m:02d}-{random.randint(10, 27):02d}"
-                session.add(
-                    Payment(
-                        amount=rent,
-                        period=f"{y}-{m:02d}",
-                        due_date=due,
-                        paid_date=paid_date,
-                        status=status,
-                        method=method,
-                        deposited=deposited,
-                        deposited_date=deposited_date,
-                        tenant_id=tenant.id,
-                    )
-                )
+                # Older cash is already banked; only the live window sits on hand.
+                if method == "cash" and period_str not in cash_window:
+                    deposited = True
+                    deposited_date = f"{y}-{m:02d}-{random.randint(10, 27):02d}"
+                session.add(Payment(
+                    amount=person["rent"], period=period_str, due_date=due,
+                    paid_date=f"{y}-{m:02d}-{day:02d}", status="paid", method=method,
+                    deposited=deposited, deposited_date=deposited_date, tenant_id=tenant.id,
+                ))
+
+            person["_prop_id"] = prop.id
+            person["_tenant"] = tenant
+            person["_periods"] = periods
         await session.commit()
 
-        # Operating expenses — a few per recent month, some paid in cash.
+        # A few vacant houses so occupancy is < 100% and varies by property.
+        for _ in range(NUM_VACANT):
+            session.add(Property(
+                address=_house_address(seq), units=1,
+                description="Vacant rental home — available to let", owner_id=manager.id,
+            ))
+            seq += 1
+        await session.commit()
+
+        # Operating expenses — a few per recent month across random houses.
         exp_templates = [
             ("Landscaping & grounds", "maintenance"),
-            ("Common-area cleaning", "maintenance"),
+            ("Compound cleaning", "maintenance"),
             ("Water & sewer", "utilities"),
             ("Electricity (common areas)", "utilities"),
             ("Property insurance", "insurance"),
             ("Plumbing supplies", "maintenance"),
             ("Pest control", "maintenance"),
         ]
-        for y, m in periods[-18:]:  # last 18 months of operating expenses
+        prop_ids = [p["_prop_id"] for p in people]
+        for y, m in full_periods[-18:]:
             period_str = f"{y}-{m:02d}"
-            for _ in range(random.randint(2, 4)):
+            for _ in range(random.randint(3, 6)):
                 desc, cat = random.choice(exp_templates)
-                prop = random.choice(props)
-                # Only the current cash-drawer window pays cash; older bills were banked.
                 paid_in_cash = period_str in cash_window and random.random() < 0.6
-                session.add(
-                    Expense(
-                        description=desc,
-                        amount=float(random.randint(60, 480)),
-                        category=cat,
-                        period=period_str,
-                        spent_date=f"{y}-{m:02d}-{random.randint(3, 26):02d}",
-                        paid_in_cash=paid_in_cash,
-                        property_id=prop.id,
-                        created_by=manager.id,
-                    )
-                )
+                session.add(Expense(
+                    description=desc, amount=float(random.randint(60, 480)), category=cat,
+                    period=period_str, spent_date=f"{y}-{m:02d}-{random.randint(3, 26):02d}",
+                    paid_in_cash=paid_in_cash, property_id=random.choice(prop_ids),
+                    created_by=manager.id,
+                ))
         await session.commit()
 
-        # Work orders + threads — ~150 spread across the full 5-year window so the
-        # maintenance-spend breakdown varies by month, year, property, and tenant.
-        for _ in range(NUM_WORK_ORDERS):
-            title, category, desc = random.choice(WO_TEMPLATES)
-            tenant = random.choice(tenants)
-            assignee = random.choice(maint_users)
-            priority = random.choice(PRIORITIES)
-
-            # Pick a month in the window (0 = oldest, newest last); bias slightly recent.
-            p_idx = min(len(periods) - 1, int(random.triangular(0, len(periods) - 1, len(periods) - 1)))
-            y, m = periods[p_idx]
-            created = datetime(y, m, random.randint(1, 27), random.randint(8, 18), tzinfo=UTC)
-            if created > now:
-                created = now - timedelta(days=random.randint(1, 20))
-
-            # Recent jobs show a live mix of statuses; older jobs are resolved.
-            recent = p_idx >= len(periods) - 4
-            if recent:
-                wo_status = random.choice(
-                    ["completed", "completed", "in_progress", "assigned", "open", "open"]
+        # Work orders + threads per house, scaled by its repair profile & tenure.
+        wo_total = 0
+        for person in people:
+            tenant = person["_tenant"]
+            periods = person["_periods"]
+            n = len(periods)
+            cap = max(1, n // 2)
+            count = min(random.randint(person["repair_min"], person["repair_max"]), cap)
+            money_pit = person["repair_max"] >= 18
+            for _ in range(count):
+                title, category, desc = random.choice(WO_TEMPLATES)
+                assignee = random.choice(maint_users)
+                priority = random.choice(
+                    ["high", "high", "emergency", "medium", "low"] if money_pit else PRIORITIES
                 )
-            else:
-                wo_status = random.choices(["completed", "cancelled"], weights=[92, 8])[0]
-            wo = WorkOrder(
-                property_id=tenant.property_id,
-                tenant_id=tenant.id,
-                unit_label=tenant.unit_label,
-                title=title,
-                description=desc,
-                category=category,
-                priority=priority,
-                status=wo_status,
-                created_by=tenant.user_id,
-                created_at=created,
-            )
-            if wo_status in ("assigned", "in_progress", "completed"):
-                wo.assigned_to = assignee.id
-            if wo_status == "completed":
-                done = min(created + timedelta(days=random.randint(1, 6)), now)
-                wo.completed_at = done.isoformat()
-                # Emergencies/high priority cost more; keeps yearly spend uneven.
-                base = 900 if priority == "emergency" else 600 if priority == "high" else 400
-                wo.cost = float(random.randint(80, base))
-                # Only recent repairs draw from the cash drawer; older ones were banked.
-                wo.paid_in_cash = done.isoformat()[:7] in cash_window and random.random() < 0.5
-                wo.scheduled_for = (created + timedelta(days=1)).date().isoformat()
-            session.add(wo)
-            await session.flush()
-
-            # Message thread reflecting the workflow
-            thread: list[tuple[int | None, str, str, str]] = [
-                (tenant.user_id, tenant.name, "tenant", f"Hi, {desc} Please help."),
-            ]
-            t = created
-            msgs = []
-            if wo_status != "open":
-                thread.append(
-                    (
-                        manager.id,
-                        manager.display_name,
-                        "manager",
-                        f"Thanks for reporting. Assigning {assignee.display_name} to take a look.",
+                p_idx = min(n - 1, int(random.triangular(0, n - 1, n - 1)))
+                y, m = periods[p_idx]
+                created = datetime(y, m, random.randint(1, 27), random.randint(8, 18), tzinfo=UTC)
+                if created > now:
+                    created = now - timedelta(days=random.randint(1, 20))
+                recent = p_idx >= n - 4
+                if recent:
+                    status = random.choice(
+                        ["completed", "completed", "in_progress", "assigned", "open", "open"]
                     )
+                else:
+                    status = random.choices(["completed", "cancelled"], weights=[92, 8])[0]
+                wo = WorkOrder(
+                    property_id=tenant.property_id, tenant_id=tenant.id, unit_label=tenant.unit_label,
+                    title=title, description=desc, category=category, priority=priority,
+                    status=status, created_by=tenant.user_id, created_at=created,
                 )
-            if wo_status in ("in_progress", "completed"):
-                thread.append(
-                    (
-                        assignee.id,
-                        assignee.display_name,
-                        "maintenance",
-                        "On my way / inspecting the issue now.",
-                    )
-                )
-            if wo_status == "completed":
-                thread.append(
-                    (
-                        assignee.id,
-                        assignee.display_name,
-                        "maintenance",
-                        f"Repair complete. Cost ${wo.cost:.0f}. Replaced/fixed the affected part.",
-                    )
-                )
-                thread.append(
-                    (
-                        manager.id,
-                        manager.display_name,
-                        "manager",
-                        "Confirmed completed and notified the tenant. Closing this out.",
-                    )
-                )
-            if wo_status == "cancelled":
-                thread.append(
-                    (
-                        manager.id,
-                        manager.display_name,
-                        "manager",
-                        "Tenant resolved it themselves. Cancelling the work order.",
-                    )
-                )
-            for aid, aname, arole, body in thread:
-                t = t + timedelta(hours=random.randint(2, 36))
-                msgs.append(
-                    WorkOrderMessage(
-                        work_order_id=wo.id,
-                        author_id=aid,
-                        author_name=aname,
-                        author_role=arole,
-                        body=body,
-                        created_at=t,
-                    )
-                )
-            session.add_all(msgs)
+                if status in ("assigned", "in_progress", "completed"):
+                    wo.assigned_to = assignee.id
+                if status == "completed":
+                    done = min(created + timedelta(days=random.randint(1, 6)), now)
+                    wo.completed_at = done.isoformat()
+                    base = 900 if priority == "emergency" else 600 if priority == "high" else 400
+                    wo.cost = float(random.randint(80, base))
+                    wo.paid_in_cash = done.isoformat()[:7] in cash_window and random.random() < 0.5
+                    wo.scheduled_for = (created + timedelta(days=1)).date().isoformat()
+                session.add(wo)
+                await session.flush()
+                session.add_all(_build_thread(wo, manager, assignee, tenant.name, desc, created))
+                wo_total += 1
         await session.commit()
 
+    # --- summary ---
     print("\n=== Harmaal demo data ready ===")
-    print("Admin (owner, no data):  admin@harmaal.local / changeme")
-    print(f"Manager:                 {MANAGER[0]} / {MANAGER[1]}")
+    print(f"Houses: {NUM_HOUSES} occupied (1 tenant each) + {NUM_VACANT} vacant · {wo_total} work orders")
+    print("Admin (owner, portfolio view):  admin@harmaal.local / changeme")
+    print(f"Manager:                        {MANAGER[0]} / {MANAGER[1]}")
     for e, p, _d in MAINTENANCE:
-        print(f"Maintenance:             {e} / {p}")
-    print(f"Tenants (x10):           {TENANTS[0][1]} ... {TENANTS[-1][1]} / {TENANT_PASSWORD}")
+        print(f"Maintenance:                    {e} / {p}")
+    print(f"Tenants (x{NUM_HOUSES}):  {people[0]['email']} … {people[-1]['email']} / {TENANT_PASSWORD}")
     print("================================\n")
 
 
