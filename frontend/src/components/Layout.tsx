@@ -138,6 +138,22 @@ export default function Layout({ children }: LayoutProps): ReactElement {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-8">
+        {/* Always-visible shortcut back to the public homepage — first item so
+            both staff and tenant pages have an obvious way home. */}
+        <div>
+          <button
+            type="button"
+            onClick={() => {
+              setMobileOpen(false);
+              navigate('/');
+            }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition font-semibold text-white/80 bg-white/5 hover:bg-white/15 hover:text-white"
+          >
+            <span className="text-lg leading-none">🏠</span>
+            <span>{t('nav.home')}</span>
+          </button>
+        </div>
+
         {visibleSections.map((section) => (
           <div key={section.headingKey}>
             <div className="px-4 pb-3 text-[10px] font-bold uppercase tracking-widest text-white/40">
@@ -211,13 +227,14 @@ export default function Layout({ children }: LayoutProps): ReactElement {
             {/* Home shortcut — returns to the main public homepage from any page. */}
             <button
               onClick={() => navigate('/')}
-              className="text-harmaal-blue text-lg leading-none p-2 rounded-xl hover:bg-slate-100 transition"
+              className="flex items-center gap-1.5 text-harmaal-blue font-semibold text-sm px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 transition"
               aria-label={t('nav.home')}
               title={t('nav.home')}
             >
-              🏠
+              <span className="text-base leading-none">🏠</span>
+              <span>{t('nav.home')}</span>
             </button>
-            <span className="hidden sm:inline text-harmaal-blue/60 text-xs font-bold uppercase tracking-widest">
+            <span className="hidden md:inline text-harmaal-blue/60 text-xs font-bold uppercase tracking-widest">
               {t('nav.workspace', { role: roleLabel })}
             </span>
           </div>
