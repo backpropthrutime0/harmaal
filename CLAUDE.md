@@ -91,9 +91,14 @@ deliberately, with the resulting fixes in the same commit.
 ## Seeded data
 On startup `seed.py` creates roles (`admin`, `owner`, `manager`, `maintenance`, `tenant`), permissions (`admin`, `manage_staff`, `manage_properties`, `manage_tenants`, `view_business`, `manage_maintenance`, `manage_feed`), and a root admin from `ROOT_EMAIL`/`ROOT_PASSWORD`.
 
-`mock_data.py` also builds an Animal Feed demo catalogue (14 SKUs, ~49 lots, ~650 ledger
-rows) on the same `is_local_dev` gate. It is seeded independently of the property demo,
-so an existing demo database picks it up on the next boot without a destructive rebuild.
+`mock_data.py` also builds an Animal Feed demo catalogue on the same `is_local_dev` gate:
+**one product per livestock line** — Camel, Cattle, Goat & Sheep, and Chicken Feed — with
+four lots each and ~10 months of seasonal FEFO sales. The four are a starting point, not
+a fixed list: admins add SKUs from the console. `FEED_DEMO_EXPIRY` and `FEED_UNDERSTOCKED`
+pin specific lots to specific states so every dashboard panel (low stock, expiring soon,
+expired, write-offs) has real data with so few products. Seeded independently of the
+property demo, so an existing demo database picks it up on the next boot without a
+destructive rebuild.
 
 **Role permissions are seeded once.** `ROLES` in `seed.py` is a bootstrap default: an existing role keeps whatever an admin configured in the UI, so restarts never undo a grant. The lone exception is the `admin` role, always reconciled to hold every permission so a new permission can't lock admins out. Change a shipped default via a data migration (see `0006_admin_only_business_access.py`), not by editing `ROLES` alone.
 
