@@ -16,7 +16,10 @@ ignore = [
   "TD002",    # missing TODO author
   "TD003",    # missing TODO issue link
   "FIX002",   # line contains TODO
+  "CPY",      # copyright notice at top of file — this project doesn't use headers
   "PLR0913",  # too many arguments (endpoints take several deps)
+  "PLR0917",  # too many POSITIONAL arguments — same concern as PLR0913 above;
+              # FastAPI endpoints and the mock-data builders both trip it
   "PLR2004",  # magic value in comparison
   "RUF012",   # mutable class attrs need ClassVar
   "B008",     # function call in default arg (FastAPI Depends pattern)

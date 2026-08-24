@@ -53,25 +53,96 @@ TENANT_PASSWORD = "Tenant!2026Key"  # shared demo password for all tenants
 
 # --- name & address pools (Somaliland flavour) ---
 FIRST_NAMES = [
-    "Amina", "Fadumo", "Hodan", "Ayaan", "Khadra", "Sagal", "Ubax", "Deqa",
-    "Ilhan", "Nasteexo", "Zamzam", "Hibaaq", "Muna", "Ruweyda", "Shukri",
-    "Warsan", "Asma", "Barwaaqo", "Canab", "Farhia", "Cabdi", "Maxamed",
-    "Axmed", "Ismaaciil", "Yuusuf", "Cali", "Xasan", "Xuseen", "Ibraahim",
-    "Maxamuud", "Cabdiraxmaan", "Faisal", "Guuleed", "Liibaan", "Cumar",
-    "Bashiir", "Daahir", "Jaamac", "Kaahin", "Sasyid", "Cabdulaahi", "Nuur",
-    "Rooble", "Diriye",
+    "Amina",
+    "Fadumo",
+    "Hodan",
+    "Ayaan",
+    "Khadra",
+    "Sagal",
+    "Ubax",
+    "Deqa",
+    "Ilhan",
+    "Nasteexo",
+    "Zamzam",
+    "Hibaaq",
+    "Muna",
+    "Ruweyda",
+    "Shukri",
+    "Warsan",
+    "Asma",
+    "Barwaaqo",
+    "Canab",
+    "Farhia",
+    "Cabdi",
+    "Maxamed",
+    "Axmed",
+    "Ismaaciil",
+    "Yuusuf",
+    "Cali",
+    "Xasan",
+    "Xuseen",
+    "Ibraahim",
+    "Maxamuud",
+    "Cabdiraxmaan",
+    "Faisal",
+    "Guuleed",
+    "Liibaan",
+    "Cumar",
+    "Bashiir",
+    "Daahir",
+    "Jaamac",
+    "Kaahin",
+    "Sasyid",
+    "Cabdulaahi",
+    "Nuur",
+    "Rooble",
+    "Diriye",
 ]
 LAST_NAMES = [
-    "Yuusuf", "Farax", "Xaaji", "Diriye", "Cabdi", "Warsame", "Maxamed",
-    "Cige", "Ismaaciil", "Guuleed", "Nuur", "Kayse", "Samatar", "Xirsi",
-    "Ducaale", "Gaas", "Rooble", "Xasan", "Cabdilaahi", "Jaamac", "Boqor",
-    "Egeh", "Carte", "Ainanshe", "Dheere", "Qaasim", "Cawaale", "Baarud",
-    "Xirsi", "Maxamuud",
+    "Yuusuf",
+    "Farax",
+    "Xaaji",
+    "Diriye",
+    "Cabdi",
+    "Warsame",
+    "Maxamed",
+    "Cige",
+    "Ismaaciil",
+    "Guuleed",
+    "Nuur",
+    "Kayse",
+    "Samatar",
+    "Xirsi",
+    "Ducaale",
+    "Gaas",
+    "Rooble",
+    "Xasan",
+    "Cabdilaahi",
+    "Jaamac",
+    "Boqor",
+    "Egeh",
+    "Carte",
+    "Ainanshe",
+    "Dheere",
+    "Qaasim",
+    "Cawaale",
+    "Baarud",
+    "Xirsi",
+    "Maxamuud",
 ]
 DISTRICTS = [
-    "26 June", "Ahmed Dhagax", "Ga'an Libaax", "Ibraahim Koodbuur",
-    "Maxamoud Haybe", "New Hargeisa", "Jigjiga Yar", "Sha'ab", "Koodbuur",
-    "Masalaha", "31 May", "Pepsi",
+    "26 June",
+    "Ahmed Dhagax",
+    "Ga'an Libaax",
+    "Ibraahim Koodbuur",
+    "Maxamoud Haybe",
+    "New Hargeisa",
+    "Jigjiga Yar",
+    "Sha'ab",
+    "Koodbuur",
+    "Masalaha",
+    "31 May",
+    "Pepsi",
 ]
 CITIES = ["Hargeysa"] * 9 + ["Berbera", "Burco", "Borama", "Gabiley"]
 
@@ -105,8 +176,18 @@ REPAIR_PROFILES = [
 
 # --- tenure in months (staggered lease starts) — list length 50 ---
 TENURES = (
-    [60] * 14 + [54] * 4 + [48] * 5 + [42] * 4 + [36] * 5 + [30] * 4
-    + [24] * 4 + [18] * 3 + [12] * 3 + [9] * 2 + [6] * 1 + [3] * 1
+    [60] * 14
+    + [54] * 4
+    + [48] * 5
+    + [42] * 4
+    + [36] * 5
+    + [30] * 4
+    + [24] * 4
+    + [18] * 3
+    + [12] * 3
+    + [9] * 2
+    + [6] * 1
+    + [3] * 1
 )
 
 NUM_HOUSES = 50
@@ -298,27 +379,58 @@ def _build_thread(wo, manager, assignee, tenant_name, desc, created):
         (wo.created_by, tenant_name, "tenant", f"Hi, {desc} Please help."),
     ]
     if wo.status != "open":
-        thread.append((manager.id, manager.display_name, "manager",
-                       f"Thanks for reporting. Assigning {assignee.display_name} to take a look."))
+        thread.append(
+            (
+                manager.id,
+                manager.display_name,
+                "manager",
+                f"Thanks for reporting. Assigning {assignee.display_name} to take a look.",
+            )
+        )
     if wo.status in ("in_progress", "completed"):
-        thread.append((assignee.id, assignee.display_name, "maintenance",
-                       "On my way / inspecting the issue now."))
+        thread.append(
+            (assignee.id, assignee.display_name, "maintenance", "On my way / inspecting the issue now.")
+        )
     if wo.status == "completed":
-        thread.append((assignee.id, assignee.display_name, "maintenance",
-                       f"Repair complete. Cost ${wo.cost:.0f}. Replaced/fixed the affected part."))
-        thread.append((manager.id, manager.display_name, "manager",
-                       "Confirmed completed and notified the tenant. Closing this out."))
+        thread.append(
+            (
+                assignee.id,
+                assignee.display_name,
+                "maintenance",
+                f"Repair complete. Cost ${wo.cost:.0f}. Replaced/fixed the affected part.",
+            )
+        )
+        thread.append(
+            (
+                manager.id,
+                manager.display_name,
+                "manager",
+                "Confirmed completed and notified the tenant. Closing this out.",
+            )
+        )
     if wo.status == "cancelled":
-        thread.append((manager.id, manager.display_name, "manager",
-                       "Tenant resolved it themselves. Cancelling the work order."))
+        thread.append(
+            (
+                manager.id,
+                manager.display_name,
+                "manager",
+                "Tenant resolved it themselves. Cancelling the work order.",
+            )
+        )
     msgs = []
     t = created
     for aid, aname, arole, body in thread:
         t = t + timedelta(hours=random.randint(2, 36))
-        msgs.append(WorkOrderMessage(
-            work_order_id=wo.id, author_id=aid, author_name=aname,
-            author_role=arole, body=body, created_at=t,
-        ))
+        msgs.append(
+            WorkOrderMessage(
+                work_order_id=wo.id,
+                author_id=aid,
+                author_name=aname,
+                author_role=arole,
+                body=body,
+                created_at=t,
+            )
+        )
     return msgs
 
 
@@ -404,11 +516,19 @@ async def build() -> None:
                 due = f"{y}-{m:02d}-05"
                 period_str = f"{y}-{m:02d}"
                 if idx in pending_idx:
-                    session.add(Payment(
-                        amount=person["rent"], period=period_str, due_date=due,
-                        paid_date=None, status="pending", method=None,
-                        deposited=False, deposited_date=None, tenant_id=tenant.id,
-                    ))
+                    session.add(
+                        Payment(
+                            amount=person["rent"],
+                            period=period_str,
+                            due_date=due,
+                            paid_date=None,
+                            status="pending",
+                            method=None,
+                            deposited=False,
+                            deposited_date=None,
+                            tenant_id=tenant.id,
+                        )
+                    )
                     continue
                 day = random.randint(2, 4) if idx not in late_idx else random.randint(9, 27)
                 method = random.choice(["cash", "cash", "card", "transfer"])
@@ -417,11 +537,19 @@ async def build() -> None:
                 if method == "cash" and period_str not in cash_window:
                     deposited = True
                     deposited_date = f"{y}-{m:02d}-{random.randint(10, 27):02d}"
-                session.add(Payment(
-                    amount=person["rent"], period=period_str, due_date=due,
-                    paid_date=f"{y}-{m:02d}-{day:02d}", status="paid", method=method,
-                    deposited=deposited, deposited_date=deposited_date, tenant_id=tenant.id,
-                ))
+                session.add(
+                    Payment(
+                        amount=person["rent"],
+                        period=period_str,
+                        due_date=due,
+                        paid_date=f"{y}-{m:02d}-{day:02d}",
+                        status="paid",
+                        method=method,
+                        deposited=deposited,
+                        deposited_date=deposited_date,
+                        tenant_id=tenant.id,
+                    )
+                )
 
             person["_prop_id"] = prop.id
             person["_tenant"] = tenant
@@ -430,10 +558,14 @@ async def build() -> None:
 
         # A few vacant houses so occupancy is < 100% and varies by property.
         for _ in range(NUM_VACANT):
-            session.add(Property(
-                address=_house_address(seq), units=1,
-                description="Vacant rental home — available to let", owner_id=manager.id,
-            ))
+            session.add(
+                Property(
+                    address=_house_address(seq),
+                    units=1,
+                    description="Vacant rental home — available to let",
+                    owner_id=manager.id,
+                )
+            )
             seq += 1
         await session.commit()
 
@@ -453,12 +585,18 @@ async def build() -> None:
             for _ in range(random.randint(3, 6)):
                 desc, cat = random.choice(exp_templates)
                 paid_in_cash = period_str in cash_window and random.random() < 0.6
-                session.add(Expense(
-                    description=desc, amount=float(random.randint(60, 480)), category=cat,
-                    period=period_str, spent_date=f"{y}-{m:02d}-{random.randint(3, 26):02d}",
-                    paid_in_cash=paid_in_cash, property_id=random.choice(prop_ids),
-                    created_by=manager.id,
-                ))
+                session.add(
+                    Expense(
+                        description=desc,
+                        amount=float(random.randint(60, 480)),
+                        category=cat,
+                        period=period_str,
+                        spent_date=f"{y}-{m:02d}-{random.randint(3, 26):02d}",
+                        paid_in_cash=paid_in_cash,
+                        property_id=random.choice(prop_ids),
+                        created_by=manager.id,
+                    )
+                )
         await session.commit()
 
         # Work orders + threads per house, scaled by its repair profile & tenure.
@@ -489,9 +627,16 @@ async def build() -> None:
                 else:
                     status = random.choices(["completed", "cancelled"], weights=[92, 8])[0]
                 wo = WorkOrder(
-                    property_id=tenant.property_id, tenant_id=tenant.id, unit_label=tenant.unit_label,
-                    title=title, description=desc, category=category, priority=priority,
-                    status=status, created_by=tenant.user_id, created_at=created,
+                    property_id=tenant.property_id,
+                    tenant_id=tenant.id,
+                    unit_label=tenant.unit_label,
+                    title=title,
+                    description=desc,
+                    category=category,
+                    priority=priority,
+                    status=status,
+                    created_by=tenant.user_id,
+                    created_at=created,
                 )
                 if status in ("assigned", "in_progress", "completed"):
                     wo.assigned_to = assignee.id

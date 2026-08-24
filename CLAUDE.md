@@ -62,6 +62,11 @@ Note: `npx tsc --noEmit` at the frontend root is a **no-op** (the root tsconfig 
 solution file with project references and no `files`). Use `npm run build` / `npx tsc -b`
 for a real typecheck.
 
+`ruff` is pinned to a minor range in `services/api/pyproject.toml`. `select = ["ALL"]`
+means every ruff release can switch on new rules, so an unpinned floor lets CI drift onto
+a newer ruff than you have locally and fail on files nobody touched. Bump the pin
+deliberately, with the resulting fixes in the same commit.
+
 ## Coding standards
 - Backend: type hints; `async def` endpoints; `await` all DB calls; eager-load (`selectinload`) anything you serialize (avoid `MissingGreenlet`). Request schemas `extra="forbid"`; every endpoint has `response_model`. Guard routes with `get_current_user` / `RequireRole` / `RequirePermission`.
 - Frontend: strict TS, named exports, all HTTP through `src/api.ts`, auth state via `authStore`, Tailwind for styling. React 19 → use `ReactElement` (no global `JSX`).

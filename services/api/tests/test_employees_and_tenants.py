@@ -192,7 +192,7 @@ async def test_list_users_admin_sees_all_roles(client):
     r = await client.get("/auth/users", headers={"Authorization": f"Bearer {admin_token}"})
     assert r.status_code == 200
     roles = {u["role"] for u in r.json()}
-    assert "admin" in roles   # root admin always present
+    assert "admin" in roles  # root admin always present
     assert "manager" in roles
     assert "owner" in roles
 

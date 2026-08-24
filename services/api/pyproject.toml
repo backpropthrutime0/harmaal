@@ -21,7 +21,11 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.4",
+    # Pinned to a minor range on purpose: `select = ["ALL"]` means every ruff
+    # release can enable new rules, and an unpinned floor let CI drift onto a
+    # newer ruff than developers had locally — turning the build red on files
+    # nobody touched. Bump this deliberately, with the fixes in the same commit.
+    "ruff>=0.16,<0.17",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
