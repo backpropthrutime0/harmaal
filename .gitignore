@@ -2,8 +2,25 @@
 __pycache__/
 .venv/
 .env
+.env.*
+!.env.example
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+build/
 
 # Node
 node_modules/
 dist/
 .vite/
+
+# Playwright MCP session artefacts + local screenshot exports
+.playwright-mcp/
+/*.png
+
+# macOS
+.DS_Store
+
+# Claude Code (personal)
+.claude/settings.local.json
+CLAUDE.local.md

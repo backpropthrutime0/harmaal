@@ -1,0 +1,44 @@
+# Ruff config for the Harmaal API (Python 3.12, FastAPI + async SQLAlchemy).
+target-version = "py312"
+line-length = 110
+
+[lint]
+select = ["ALL"]
+ignore = [
+  "ANN",      # type-annotation completeness (we annotate pragmatically)
+  "D",        # docstring conventions
+  "EM101",    # exception must not use a string literal
+  "EM102",    # exception must not use an f-string literal
+  "TRY003",   # long messages in raise
+  "FBT",      # boolean-trap (FastAPI deps use bool flags)
+  "COM812",   # conflicts with formatter
+  "ISC001",   # conflicts with formatter
+  "TD002",    # missing TODO author
+  "TD003",    # missing TODO issue link
+  "FIX002",   # line contains TODO
+  "CPY",      # copyright notice at top of file — this project doesn't use headers
+  "PLR0913",  # too many arguments (endpoints take several deps)
+  "PLR0917",  # too many POSITIONAL arguments — same concern as PLR0913 above;
+              # FastAPI endpoints and the mock-data builders both trip it
+  "PLR2004",  # magic value in comparison
+  "RUF012",   # mutable class attrs need ClassVar
+  "B008",     # function call in default arg (FastAPI Depends pattern)
+  "TC",       # type-checking-block imports — UNSAFE here: FastAPI Depends and
+              # Pydantic need AsyncSession/datetime at runtime, not just typing
+  "S105",     # "hardcoded password" false-positives on config defaults / "bearer"
+  "C901",     # function complexity (password policy is intentionally linear)
+  "TRY301",   # abstract raise to inner function
+]
+
+[lint.per-file-ignores]
+"shared/migrations/*" = ["ALL"]      # generated migrations
+"services/api/tests/*" = ["S101", "S106", "INP001"]  # asserts, test creds, no __init__
+# Mock-data CLI: non-crypto randomness, prints, and long linear builders are fine.
+"services/api/src/api/mock_data.py" = ["S311", "T201", "PLR0912", "PLR0915", "C901"]
+
+[lint.isort]
+known-first-party = ["api"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

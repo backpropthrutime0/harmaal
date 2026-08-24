@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import api from './api';
+import { register, errorMessage } from './auth/authApi';
 
 export default function Register() {
   const [firstName, setFirstName] = useState('');
@@ -14,26 +14,31 @@ export default function Register() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     try {
-      // FIX: Pointed exactly to /users/ and only sending the 3 fields your Python DB wants
-      await api.post('/users/', {
-        email: email,
-        password: password,
-        role: 'admin'
-      });
-      
-      navigate('/login');
+      // Self-registration creates a tenant account. Staff (admin/manager/maintenance)
+      // are provisioned by an admin via /auth/users — never self-registered.
+      const display_name = `${firstName} ${lastName}`.trim();
+      await register(email, password, 'tenant', { display_name, phone });
+      navigate('/tenant-login');
     } catch (err) {
-      setError('Failed to create account. Please try again.');
+      setError(errorMessage(err, 'Failed to create account. Please try again.'));
     }
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-slate-50 px-6 py-12">
+      <Link
+        to="/"
+        className="absolute left-4 top-4 sm:left-8 sm:top-6 flex items-center gap-1.5 text-slate-500 hover:text-blue-600 font-semibold text-sm px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition"
+      >
+        <span className="text-base leading-none">🏠</span>
+        <span>Home</span>
+      </Link>
       <div className="w-full max-w-md bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Account</h1>
-          <p className="text-slate-500">Initialize your Harmaal Manager Portal.</p>
+          <h1 className="text-3xl font-bold text-slate-900 mb-2">Become a Tenant</h1>
+          <p className="text-slate-500">Create your Harmaal tenant account.</p>
         </div>
 
         {error && (
@@ -115,6 +120,9 @@ export default function Register() {
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
+            <p className="mt-2 text-xs text-slate-400">
+              At least 12 characters with upper, lower, number, and a symbol.
+            </p>
           </div>
           
           <button
@@ -127,7 +135,7 @@ export default function Register() {
 
         <div className="mt-8 text-center text-sm text-slate-500">
           Already have an account?{' '}
-          <Link to="/login" className="text-blue-600 font-semibold hover:underline">
+          <Link to="/tenant-login" className="text-blue-600 font-semibold hover:underline">
             Sign in securely
           </Link>
         </div>

@@ -1,0 +1,83 @@
+{
+  "_comment": "Rename to settings.json to activate. Defines pre-approved commands (so Claude Code prompts less), auto-format hooks, and env. Review before enabling — the allow-list widens what runs without prompting.",
+  "permissions": {
+    "allow": [
+      "Bash(cd services/api && ruff *)",
+      "Bash(cd services/api && pytest *)",
+      "Bash(cd services/api && alembic *)",
+      "Bash(cd frontend && npm *)",
+      "Bash(cd frontend && npx vitest *)",
+      "Bash(cd frontend && npx tsc *)",
+      "Bash(cd frontend && npx prettier *)",
+      "Bash(cd frontend && npx eslint *)",
+      "Bash(docker compose *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git status *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/secrets*)",
+      "Write(.env)",
+      "Write(.env.*)",
+      "Bash(rm -rf *)",
+      "Bash(curl * | bash)",
+      "Bash(pip install * --break-system-packages)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write(*.py)|Edit(*.py)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd services/api && ruff format --quiet \"$FILE_PATH\" 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Write(*.ts)|Write(*.tsx)|Edit(*.ts)|Edit(*.tsx)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd frontend && npx prettier --write \"$FILE_PATH\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/validate-bash.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONPATH": "./services/api/src",
+    "NODE_ENV": "development"
+  }
+}

@@ -18,18 +18,13 @@ export default function Properties() {
   const [newUnits, setNewUnits] = useState('');
   const [toast, setToast] = useState(''); 
 
-  const fetchProperties = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await api.get('/properties/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setProperties(response.data);
-    } catch (err) {
-      console.error("Failed to fetch properties:", err);
-    } finally {
-      setLoading(false);
-    }
+  const fetchProperties = () => {
+    const token = localStorage.getItem('token');
+    return api
+      .get('/properties/', { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => setProperties(response.data))
+      .catch((err) => console.error('Failed to fetch properties:', err))
+      .finally(() => setLoading(false));
   };
 
   useEffect(() => {
@@ -56,7 +51,7 @@ export default function Properties() {
       fetchProperties(); 
 
       setTimeout(() => setToast(''), 3000);
-    } catch (err) {
+    } catch {
       alert("Failed to add property. Please check your inputs.");
     }
   };
@@ -77,27 +72,27 @@ export default function Properties() {
       setToast(`${address} has been removed from your portfolio.`);
       fetchProperties(); // Refresh the grid
       setTimeout(() => setToast(''), 3000);
-    } catch (err) {
+    } catch {
       alert("Failed to delete property. Make sure you have admin privileges.");
     }
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto relative">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto relative">
       {toast && (
-        <div className="fixed top-4 right-4 bg-green-600 text-white px-6 py-3 rounded-xl shadow-lg font-semibold animate-fade-in-down z-50">
+        <div className="fixed top-4 right-4 left-4 sm:left-auto bg-green-600 text-white px-6 py-3 rounded-xl shadow-lg font-semibold animate-fade-in-down z-50">
           ✓ {toast}
         </div>
       )}
 
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Property Portfolio</h1>
+      <div className="flex flex-col gap-4 mb-6 sm:mb-8 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Property Portfolio</h1>
           <p className="text-slate-500 mt-1">Manage your buildings and operational assets.</p>
         </div>
-        <button 
+        <button
           onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition shadow-sm"
+          className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition shadow-sm shrink-0"
         >
           {showAddForm ? 'Cancel' : '+ Add New Property'}
         </button>

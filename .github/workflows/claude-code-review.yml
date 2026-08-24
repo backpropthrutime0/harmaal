@@ -1,0 +1,55 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The review is an optional assist, not a merge gate. Without the secret the
+      # action can't authenticate, and failing every PR over an unconfigured extra
+      # is worse than skipping it — so probe first and no-op when it's absent.
+      # (`secrets` isn't available in a job-level `if`, hence the step.)
+      - id: guard
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::ANTHROPIC_API_KEY is not set — skipping the Claude review."
+          fi
+
+      - name: Claude review
+        if: steps.guard.outputs.configured == 'true'
+        # Org is `anthropics` (plural) and the action is pinned to the v1 major tag.
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # v1 renamed `direct_prompt` to `prompt`.
+          prompt: |
+            Review this Hormaal Group PR (FastAPI async + SQLAlchemy 2.0 + Alembic;
+            React/TS/Vite/Tailwind/zustand). Two products share the codebase: the
+            property-management app and the Hormaal Animal Feed console, separated by
+            permission rather than by database.
+            Focus only on bugs and security:
+            - async safety: no blocking calls in async def; await all DB calls; no MissingGreenlet lazy-loads (use selectinload).
+            - FastAPI deps: Annotated[..., Depends()]; auth via get_current_user / RequireRole / RequirePermission.
+            - cross-product access: every /feed route requires `manage_feed`; a change to shared auth/RBAC must not widen access.
+            - JWT pinned to HS256; MFA-stage tokens rejected for API access.
+            - Pydantic v2: request models extra="forbid"; response_model set; no leaking hashed_password / totp_secret.
+            - SQLAlchemy 2.0 parameterized queries; no f-strings in text().
+            - stock invariants in .claude/rules/feed-inventory.md still hold (derived stock on hand, FEFO, expired lots unsellable, append-only ledger).
+            - No hardcoded secrets (use settings).
+            - Schema changes have an Alembic migration with a real downgrade().
+            Be concise; report only real issues.
