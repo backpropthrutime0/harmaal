@@ -7,6 +7,13 @@ not fire startup events — we seed the test DB explicitly instead.
 
 from __future__ import annotations
 
+import os
+
+# `Settings` now defaults to the strict production posture and refuses to build on
+# shipped-default secrets, so declare the local-dev posture before anything imports
+# `api.config` (it instantiates a module-level singleton at import time).
+os.environ.setdefault("ENVIRONMENT", "development")
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine

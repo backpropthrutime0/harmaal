@@ -11,7 +11,7 @@ Property-management platform. Owners/managers manage **properties**, their **ten
 ## Architecture notes
 - **Single unified `users` table** (admin/owner/tenant) with auth/2FA/lockout columns + **RBAC** via `roles`/`permissions` join tables. Coarse `role` drives routing; fine-grained `permissions` drive `RequirePermission`.
 - **Auth** (`/auth`): password login → optional **TOTP 2FA** (`mfa_required` → `/auth/verify-2fa`). JWT (HS256). DB-backed lockout (5 fails → 15 min). Strong password policy. Admin-created users get a one-time password and `must_change_password`.
-- **Config**: everything via `api.config.settings` (pydantic-settings, reads `.env`). No hardcoded secrets.
+- **Config**: everything via `api.config.settings` (pydantic-settings, reads `.env`). No hardcoded secrets. `ENVIRONMENT` defaults to **`production`** (strict) — see Security.
 
 ## Common commands
 ```bash
@@ -21,7 +21,7 @@ docker compose logs -f backend
 
 # Backend (local, against the compose DB)
 cd services/api && pip install -e ".[dev]"
-PYTHONPATH=src AUTO_CREATE_TABLES=true uvicorn api.main:app --reload   # quick dev w/o alembic
+ENVIRONMENT=development PYTHONPATH=src AUTO_CREATE_TABLES=true uvicorn api.main:app --reload   # quick dev w/o alembic
 cd services/api && pytest -q
 cd services/api && ruff check src tests && ruff format src tests
 
@@ -40,6 +40,7 @@ cd frontend && npm test                      # vitest (jsdom via per-file docblo
 - See `.claude/rules/` for security-hardening, alembic, and TS/React rules.
 
 ## Security
+- **Fail-closed config**: `ENVIRONMENT` defaults to `production`, and `Settings` refuses to construct when `JWT_SECRET` / `ROOT_PASSWORD` / the DB password are still the shipped defaults. The only exemption is `settings.is_local_dev` — `ENVIRONMENT=development` **and** every `CORS_ORIGINS`/`FRONTEND_URL` host is loopback. Bind address is not used as the signal (a container always binds `0.0.0.0`). Demo seeding is gated on the same property, since `mock_data.py`'s passwords are public. Running the API outside Docker needs an explicit `ENVIRONMENT=development`.
 - JWT HS256 only; MFA-stage tokens can't access the API. TOTP `valid_window=1`; secret returned only at setup (Core scope: stored plaintext — harden with pgcrypto later). bcrypt + dummy-hash timing defense. Never serialize `hashed_password`/`totp_secret`. CORS limited to `settings.cors_origins`.
 
 ## Key endpoints

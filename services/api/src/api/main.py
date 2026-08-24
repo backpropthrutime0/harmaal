@@ -38,8 +38,12 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     async with AsyncSessionFactory() as session:
         await seed(session)
     # First-boot demo data so a fresh checkout has working staff/tenant logins,
-    # not just the root admin. Skipped in production and once data exists.
-    if settings.seed_demo_data and settings.environment != "production":
+    # not just the root admin. The demo passwords live in mock_data.py in a public
+    # repo, so this is gated on `is_local_dev` (explicit ENVIRONMENT=development
+    # *and* loopback-only origins) rather than merely "not production" — an unset
+    # ENVIRONMENT must never seed publicly-known credentials. Also a no-op once
+    # business data exists.
+    if settings.seed_demo_data and settings.is_local_dev:
         await seed_demo_if_empty()
     yield
 

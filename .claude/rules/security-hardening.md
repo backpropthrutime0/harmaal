@@ -24,7 +24,8 @@ Stack-specific constraints for FastAPI + async SQLAlchemy + JWT/TOTP. Adapted fr
 
 ## Secrets
 - All config via `api.config.settings`; nothing hardcoded.
-- `.env` is gitignored and never read/logged. Production validates `JWT_SECRET` is non-default and ≥32 chars.
+- `.env` is gitignored and never read/logged.
+- **Defaults fail closed.** `ENVIRONMENT` defaults to `production`; `Settings` refuses to construct on a shipped-default `JWT_SECRET` (or one <32 chars), `ROOT_PASSWORD`, or DB password. Exempt only when `settings.is_local_dev` — explicit `ENVIRONMENT=development` *and* loopback-only `CORS_ORIGINS`/`FRONTEND_URL`. Never widen that exemption to "not production": an unset variable must stay strict. This repo is public, so every shipped default is world-readable.
 
 ## Transport / infra
 - CORS limited to `settings.cors_origins`.
