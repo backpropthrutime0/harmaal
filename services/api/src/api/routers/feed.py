@@ -235,6 +235,41 @@ def _expiry_predicate(status: str, today: str):
     raise HTTPException(status_code=422, detail="Unknown expiry_status")
 
 
+def _bucket_predicate(bucket: str, today: str):
+    """SQL equivalent of :func:`inv.expiry_bucket`, for drilling into a chart bar.
+
+    The dashboard's shelf-life chart counts lots with this classification, so the
+    drill-down has to use the *same* rule — reimplementing the date arithmetic on
+    the client is how a chart and its detail view start disagreeing.
+    """
+    # `+` is the legacy encoding for a space in a query string, so the "90+" band
+    # can arrive as "90 " depending on how the caller built the URL. Normalize both
+    # the input and the labels rather than making every client remember to escape it.
+    wanted = bucket.strip().rstrip("+")
+
+    if wanted == "expired":
+        return FeedBatch.expiry_date.is_not(None) & (FeedBatch.expiry_date < today)
+
+    lower = today
+    for label, upper_days in inv.EXPIRY_BUCKETS:
+        if upper_days is None:
+            break
+        upper = inv.add_days(today, upper_days)
+        if wanted == label:
+            return (
+                FeedBatch.expiry_date.is_not(None)
+                & (FeedBatch.expiry_date >= lower)
+                & (FeedBatch.expiry_date <= upper)
+            )
+        # The next band starts the day after this one ends.
+        lower = inv.add_days(upper, 1)
+
+    if wanted == "90":
+        # Undated lots land here, matching `inv.expiry_bucket`.
+        return FeedBatch.expiry_date.is_(None) | (FeedBatch.expiry_date >= lower)
+    raise HTTPException(status_code=422, detail="Unknown bucket")
+
+
 def _refuse_retire_with_stock(product: FeedProduct) -> None:
     """Block retiring a SKU that still holds stock.
 
@@ -472,6 +507,7 @@ async def list_batches(
     session: Annotated[AsyncSession, Depends(get_session)],
     product_id: int | None = None,
     expiry_status: str | None = None,
+    bucket: Annotated[str | None, Query(max_length=10)] = None,
     in_stock_only: bool = False,
     limit: Annotated[int, Query(ge=1, le=_MAX_PAGE)] = 200,
 ) -> list[FeedBatchResponse]:
@@ -485,6 +521,9 @@ async def list_batches(
         # Filtered in SQL, before the LIMIT. Filtering the page afterwards would
         # silently return a short page whenever the excluded lots sort first.
         stmt = stmt.where(_expiry_predicate(expiry_status, today))
+    if bucket:
+        # Shelf-life band, as charted by the dashboard.
+        stmt = stmt.where(_bucket_predicate(bucket, today))
     stmt = stmt.limit(limit)
 
     rows = list((await session.execute(stmt)).scalars().all())
@@ -910,7 +949,12 @@ async def dashboard(
     names = {p.id: f"{p.sku} · {p.name}" for p in products}
     top_sellers = sorted(
         (
-            FeedNamedTotal(name=names.get(pid, str(pid)), units=int(v[0]), value=round(v[1], 2))
+            FeedNamedTotal(
+                name=names.get(pid, str(pid)),
+                units=int(v[0]),
+                value=round(v[1], 2),
+                product_id=pid,
+            )
             for pid, v in sold_by_product.items()
         ),
         key=lambda t: t.units,

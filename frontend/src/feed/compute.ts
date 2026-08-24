@@ -74,6 +74,22 @@ export function momChange(rows: FeedPeriod[], key: keyof FeedPeriod): number | n
   return Math.round(((current - previous) / previous) * 1000) / 10;
 }
 
+/**
+ * First and last day of a `YYYY-MM` period, as the ledger's ISO date strings.
+ *
+ * Used to turn a clicked chart month into the date window that reproduces it.
+ * Day 0 of the following month is the last day of this one, which avoids a
+ * month-length table and gets February right in leap years.
+ */
+export function periodRange(period: string): { from: string; to: string } {
+  const [year, month] = period.split('-').map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return { from: '', to: '' };
+  }
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { from: `${period}-01`, to: `${period}-${String(last).padStart(2, '0')}` };
+}
+
 /** Total units of a period series — used for chart empty-state checks. */
 export function totalSold(rows: FeedPeriod[]): number {
   return rows.reduce((sum, row) => sum + row.units_sold, 0);

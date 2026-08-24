@@ -6,7 +6,15 @@ import { money } from '../format';
 import { errorMessage } from '../auth/authApi';
 import { getFeedDashboard } from './feedApi';
 import { ErrorBanner, Section, StatTile } from './ui';
-import { compactMoney, expiryCountdown, momChange, shortPeriod, units } from './compute';
+import {
+  bucketSeries,
+  compactMoney,
+  expiryCountdown,
+  momChange,
+  periodRange,
+  shortPeriod,
+  units,
+} from './compute';
 import { SPECIES_ICON, SPECIES_LABEL } from './constants';
 import {
   ExpiryChart,
@@ -15,9 +23,11 @@ import {
   SpeciesMixChart,
   TopSellersChart,
 } from './charts';
+import { FeedDrilldown, type Drill } from './FeedDrilldown';
 import type { FeedAlert, FeedDashboard as Dashboard, Species } from './types';
 
 const WINDOWS = [6, 12, 24] as const;
+
 
 /** Alert table shared by the reorder / expiring / expired panels. */
 function AlertTable({
@@ -100,6 +110,8 @@ function AlertTable({
 export default function FeedDashboard(): ReactElement {
   const navigate = useNavigate();
   const [months, setMonths] = useState<number>(12);
+  /** The dashboard figure the user opened, or null when no drill is showing. */
+  const [drill, setDrill] = useState<Drill | null>(null);
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -127,6 +139,53 @@ export default function FeedDashboard(): ReactElement {
   }, [months]);
 
   const openProduct = (productId: number) => navigate(`/feed/products/${productId}`);
+
+  // Each builder expresses a dashboard figure as the query that reproduces it.
+  // Defined next to each other on purpose: if a tile's meaning changes, the
+  // drill-down that has to keep matching it is right here.
+  const inStock: Drill = {
+    kind: 'products',
+    title: 'Stock on hand',
+    subtitle: 'Every active product, valued at cost and at retail.',
+    filters: {},
+    goTo: '/feed/products',
+  };
+
+  const monthWindow = data ? periodRange(data.period) : { from: '', to: '' };
+
+  const drillSales = (period: string): Drill => ({
+    kind: 'movements',
+    title: `Sales — ${shortPeriod(period)}`,
+    subtitle: 'Every sale booked in this month, costed at the lot it came from.',
+    filters: {
+      movement_type: 'sale',
+      date_from: periodRange(period).from,
+      date_to: periodRange(period).to,
+      limit: 500,
+    },
+    goTo: '/feed/movements?movement_type=sale',
+  });
+
+  const drillBucket = (bucket: string): Drill => ({
+    kind: 'lots',
+    title: bucket === 'expired' ? 'Expired lots' : `Lots expiring in ${bucket} days`,
+    subtitle:
+      bucket === 'expired'
+        ? 'Past their date and unsellable — write these off.'
+        : 'Shelf life remaining, counted the same way the chart counts it.',
+    // `in_stock_only` matches the chart's population: a retired product cannot
+    // hold stock, so this is exactly the set of lots the bar measured.
+    filters: { bucket, in_stock_only: true, limit: 500 },
+    goTo: '/feed/inventory',
+  });
+
+  const drillSpecies = (species: string): Drill => ({
+    kind: 'products',
+    title: `${SPECIES_LABEL[species as Species] ?? species} feed`,
+    subtitle: 'Products in this line and the capital tied up in them.',
+    filters: { species: species as Species },
+    goTo: `/feed/products?species=${species}`,
+  });
 
   if (loading && !data) return <Loading label="Loading inventory…" />;
 
@@ -168,12 +227,20 @@ export default function FeedDashboard(): ReactElement {
               value={money(data.stock_value_cost)}
               hint={`${units(data.total_units)} units across ${data.active_products} products`}
               icon="📦"
+              onClick={() => setDrill({ ...inStock, title: 'Stock value at cost' })}
             />
             <StatTile
               label="Retail value"
               value={money(data.stock_value_retail)}
               hint={`${money(data.potential_margin)} potential margin`}
               icon="🏷️"
+              onClick={() =>
+                setDrill({
+                  ...inStock,
+                  title: 'Stock value at retail',
+                  subtitle: 'What the shelf is worth if it all sells at list price.',
+                })
+              }
             />
             <StatTile
               label="Margin if sold"
@@ -181,12 +248,20 @@ export default function FeedDashboard(): ReactElement {
               tone={data.potential_margin_pct >= 20 ? 'good' : 'warn'}
               hint="Gross margin on current stock"
               icon="📈"
+              onClick={() =>
+                setDrill({
+                  ...inStock,
+                  title: 'Margin on current stock',
+                  subtitle: 'Cost against retail, product by product.',
+                })
+              }
             />
             <StatTile
               label={`Sold in ${shortPeriod(data.period)}`}
               value={units(data.units_sold_mtd)}
               hint={`${money(data.revenue_mtd)} revenue · ${money(data.margin_mtd)} margin`}
               icon="🧾"
+              onClick={() => setDrill(drillSales(data.period))}
             />
           </div>
 
@@ -199,8 +274,16 @@ export default function FeedDashboard(): ReactElement {
               hint={`${data.out_of_stock_count} out of stock · ${data.low_stock_count} low`}
               icon="🔔"
               // Both statuses, matching the count on the tile — drilling into
-              // "low" alone would drop the out-of-stock half on arrival.
-              onClick={() => navigate('/feed/products?stock_status=low,out_of_stock')}
+              // "low" alone would drop the out-of-stock half.
+              onClick={() =>
+                setDrill({
+                  kind: 'products',
+                  title: 'Needs reordering',
+                  subtitle: 'At or below the reorder point, counted on sellable stock.',
+                  filters: { stock_status: 'low,out_of_stock' },
+                  goTo: '/feed/products?stock_status=low,out_of_stock',
+                })
+              }
             />
             <StatTile
               label="Expiring within 30 days"
@@ -208,7 +291,15 @@ export default function FeedDashboard(): ReactElement {
               tone={data.expiring_units > 0 ? 'warn' : 'good'}
               hint={`${money(data.expiring_value)} · ${data.expiring_value_pct}% of stock value`}
               icon="⏳"
-              onClick={() => navigate('/feed/inventory?expiry_status=expiring_soon')}
+              onClick={() =>
+                setDrill({
+                  kind: 'lots',
+                  title: 'Expiring within 30 days',
+                  subtitle: 'Still sellable, but not for long — discount or move these.',
+                  filters: { expiry_status: 'expiring_soon', in_stock_only: true, limit: 500 },
+                  goTo: '/feed/inventory?expiry_status=expiring_soon',
+                })
+              }
             />
             <StatTile
               label="Already expired"
@@ -216,7 +307,15 @@ export default function FeedDashboard(): ReactElement {
               tone={data.expired_units > 0 ? 'bad' : 'good'}
               hint={`${money(data.expired_value)} · ${data.expired_value_pct}% of stock value`}
               icon="⚠️"
-              onClick={() => navigate('/feed/inventory?expiry_status=expired')}
+              onClick={() =>
+                setDrill({
+                  kind: 'lots',
+                  title: 'Expired stock',
+                  subtitle: 'Past its date and unsellable — still carried at cost until written off.',
+                  filters: { expiry_status: 'expired', in_stock_only: true, limit: 500 },
+                  goTo: '/feed/inventory?expiry_status=expired',
+                })
+              }
             />
             <StatTile
               label="Written off this month"
@@ -231,16 +330,60 @@ export default function FeedDashboard(): ReactElement {
                   : 'Loss at cost'
               }
               icon="🗑️"
+              onClick={() =>
+                setDrill({
+                  kind: 'movements',
+                  title: `Written off — ${shortPeriod(data.period)}`,
+                  subtitle: 'Stock destroyed or scrapped this month, valued at what it cost.',
+                  filters: {
+                    movement_type: 'write_off',
+                    date_from: monthWindow.from,
+                    date_to: monthWindow.to,
+                    limit: 500,
+                  },
+                  goTo: '/feed/movements?movement_type=write_off',
+                })
+              }
             />
           </div>
 
           {/* --- trend --- */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <SalesTrendChart rows={data.monthly} />
-            <MarginChart rows={data.monthly} />
-            <ExpiryChart buckets={data.expiry_buckets} />
-            <SpeciesMixChart rows={data.by_species} />
-            <TopSellersChart rows={data.top_sellers} />
+            <SalesTrendChart
+              rows={data.monthly}
+              onSelect={(i) => setDrill(drillSales(data.monthly[i].period))}
+            />
+            <MarginChart
+              rows={data.monthly}
+              onSelect={(i) => setDrill(drillSales(data.monthly[i].period))}
+            />
+            <ExpiryChart
+              buckets={data.expiry_buckets}
+              onSelect={(i) => setDrill(drillBucket(bucketSeries(data.expiry_buckets)[i].bucket))}
+            />
+            <SpeciesMixChart
+              rows={data.by_species}
+              onSelect={(i) => setDrill(drillSpecies(data.by_species[i].name))}
+            />
+            <TopSellersChart
+              rows={data.top_sellers}
+              onSelect={(i) => {
+                const row = data.top_sellers[i];
+                if (!row?.product_id) return;
+                setDrill({
+                  kind: 'movements',
+                  title: row.name,
+                  subtitle: `Every sale in the charted ${months}-month window.`,
+                  filters: {
+                    product_id: row.product_id,
+                    movement_type: 'sale',
+                    date_from: `${data.monthly[0].period}-01`,
+                    limit: 500,
+                  },
+                  goTo: `/feed/products/${row.product_id}`,
+                });
+              }}
+            />
             <Section title="Stock by species" subtitle="Units and value on hand today">
               {data.by_species.length === 0 ? (
                 <p className="py-6 text-center text-sm text-slate-400">No stock on hand.</p>
@@ -252,7 +395,12 @@ export default function FeedDashboard(): ReactElement {
                         ? Math.round((row.value / data.stock_value_cost) * 100)
                         : 0;
                     return (
-                      <div key={row.name}>
+                      <button
+                        type="button"
+                        key={row.name}
+                        onClick={() => setDrill(drillSpecies(row.name))}
+                        className="w-full rounded-lg px-1 py-0.5 text-left transition hover:bg-slate-50"
+                      >
                         <div className="mb-1 flex items-center justify-between text-sm">
                           <span className="font-semibold text-slate-700">
                             {SPECIES_ICON[row.name as Species]}{' '}
@@ -268,7 +416,7 @@ export default function FeedDashboard(): ReactElement {
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -304,6 +452,8 @@ export default function FeedDashboard(): ReactElement {
           </div>
         </div>
       )}
+
+      <FeedDrilldown drill={drill} onClose={() => setDrill(null)} />
     </div>
   );
 }

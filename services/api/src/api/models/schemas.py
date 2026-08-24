@@ -807,6 +807,9 @@ class FeedNamedTotal(BaseModel):
     name: str
     units: int
     value: float
+    # Set only where the slice *is* a product (top sellers), so the dashboard can
+    # drill into its ledger without parsing an id back out of the display label.
+    product_id: int | None = None
 
 
 class FeedAlert(BaseModel):
