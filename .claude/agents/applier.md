@@ -1,6 +1,6 @@
 ---
 name: applier
-description: Applies review/audit findings to the Harmaal codebase as minimal, safe edits with verification. Use to action a list of findings.
+description: Applies review/audit findings to the Hormaal Group codebase as minimal, safe edits with verification. Use to action a list of findings.
 model: sonnet
 color: orange
 ---

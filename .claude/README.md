@@ -1,6 +1,6 @@
-# Harmaal — Claude Code setup
+# Hormaal Group — Claude Code setup
 
-Project automation for Claude Code, adapted from the avis_tools template for Harmaal's stack (FastAPI async + SQLAlchemy/Alembic; React + TS + Vite + Tailwind + zustand).
+Project automation for Claude Code, adapted from the avis_tools template for this stack (FastAPI async + SQLAlchemy/Alembic; React + TS + Vite + Tailwind + zustand). The repo hosts more than one Hormaal Group company — the property-management app and the Animal Feed inventory console — sharing one backend, one bundle and one identity store.
 
 ## Agents (`.claude/agents/`)
 | Agent | Model | Purpose |
@@ -13,13 +13,13 @@ Project automation for Claude Code, adapted from the avis_tools template for Har
 | applier | sonnet | Apply review findings as minimal edits |
 
 ## Skills (`.claude/skills/`)
-`/code-review` · `/security-audit` · `/test-writer` · `/refactor` · `/docker-rebuild`
+`/code-review` · `/security-audit` · `/test-writer` · `/refactor` · `/docker-rebuild` · `/feed-inventory`
 
 ## Commands (`.claude/commands/`)
 `/review-pr` · `/fix-issue <n>` · `/deploy-check` · `/add-endpoint <desc>` · `/db-migrate <desc>`
 
 ## Rules (`.claude/rules/`)
-Always-on coding constraints: `alembic-migrations`, `security-hardening`, `typescript-react`.
+Always-on coding constraints: `alembic-migrations`, `security-hardening`, `typescript-react`, `feed-inventory` (the Animal Feed stock invariants).
 
 ## Hooks (`.claude/hooks/`)
 `validate-bash.sh` — blocks destructive shell commands, warns on prod-adjacent ones.

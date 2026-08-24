@@ -1,6 +1,6 @@
 ---
 name: test-writer
-description: Generate or extend pytest (async) and Vitest tests for Harmaal. Delegates to the test-writer agent.
+description: Generate or extend pytest (async) and Vitest tests for the Hormaal Group repo. Delegates to the test-writer agent.
 ---
 
 # /test-writer

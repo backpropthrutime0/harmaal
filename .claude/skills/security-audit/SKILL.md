@@ -1,6 +1,6 @@
 ---
 name: security-audit
-description: Security audit of Harmaal — auth/2FA, JWT, RBAC, secrets, injection, infra. Delegates to the security-auditor agent.
+description: Security audit of the Hormaal Group repo — auth/2FA, JWT, RBAC, cross-product access, secrets, injection, infra. Delegates to the security-auditor agent.
 ---
 
 # /security-audit
@@ -13,8 +13,10 @@ description: Security audit of Harmaal — auth/2FA, JWT, RBAC, secrets, injecti
 - Secrets: `grep -rEn "(secret|password|token)\s*=\s*['\"]" services/api/src` (expect only `settings` references).
 - `.env` not tracked: `git ls-files | grep -E '^\.env$'` should be empty.
 - Deps: `cd services/api && pip-audit` (if installed); `cd frontend && npm audit --omit=dev`.
+- Unguarded routes: `grep -n '@router\.' services/api/src/api/routers/*.py` — every endpoint must take a guard dependency.
+- Cross-product access: every `/feed` route requires `manage_feed`, seeded to the `admin` role only.
 
 ## Deep analysis
-Delegate to the **security-auditor** agent (uses `.claude/rules/security-hardening.md`). Focus areas: JWT/TOTP, RBAC enforcement, Pydantic boundaries + `response_model` field leakage, parameterized SQL, CORS/headers, Dockerfile.
+Delegate to the **security-auditor** agent (uses `.claude/rules/security-hardening.md`). Focus areas: JWT/TOTP, RBAC enforcement, cross-product isolation (property app vs. Animal Feed console — same identity store, separated only by permission), Pydantic boundaries + `response_model` field leakage, parameterized SQL, CORS/headers, Dockerfile.
 
 Output findings by severity with remediation.

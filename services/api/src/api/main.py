@@ -20,6 +20,7 @@ from api.mock_data import seed_demo_if_empty
 from api.routers import (
     auth,
     dashboards,
+    feed,
     finance,
     invoices,
     properties,
@@ -77,6 +78,8 @@ app.include_router(work_orders.router)
 app.include_router(dashboards.router)
 app.include_router(finance.router)
 app.include_router(invoices.router)
+# Hormaal Animal Feed — sibling Hormaal Group company (permission: manage_feed).
+app.include_router(feed.router)
 
 
 @app.get("/")

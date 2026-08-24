@@ -1,6 +1,6 @@
 ---
 name: docker-rebuild
-description: Rebuild and restart Harmaal Docker services after code changes, then verify health.
+description: Rebuild and restart the Hormaal Group Docker services after code changes, then verify health.
 ---
 
 # /docker-rebuild

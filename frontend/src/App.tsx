@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import { Loading } from './components/ui';
+import GroupLanding from './GroupLanding';
 import LandingPage from './LandingPage';
 import LoginPage from './LoginPage';
 import Register from './Register';
@@ -23,13 +24,17 @@ import TenantMaintenance from './TenantMaintenance';
 
 // Lazy-loaded so recharts (~100kb) only ships when a view_business user opens it.
 const Analytics = lazy(() => import('./analytics'));
+// Hormaal Animal Feed is a separate Hormaal Group company sharing this bundle;
+// the whole console (pages + charts) loads only when someone opens /feed.
+const FeedApp = lazy(() => import('./feed'));
 
 export default function App() {
   return (
     <Router>
       <Routes>
-        {/* Public */}
-        <Route path="/" element={<LandingPage />} />
+        {/* Public — "/" is the Hormaal Group hub; each company hangs off it. */}
+        <Route path="/" element={<GroupLanding />} />
+        <Route path="/property-management" element={<LandingPage />} />
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/tenant-login" element={<LoginPage tenant />} />
@@ -74,6 +79,18 @@ export default function App() {
         <Route path="/portal" element={<PrivateRoute><Layout><TenantPortal /></Layout></PrivateRoute>} />
         <Route path="/portal/payments" element={<PrivateRoute><Layout><TenantPayments /></Layout></PrivateRoute>} />
         <Route path="/portal/maintenance" element={<PrivateRoute><Layout><TenantMaintenance /></Layout></PrivateRoute>} />
+
+        {/* Hormaal Animal Feed — its own admin-only console under /feed/*.
+            Auth and the `manage_feed` guard live inside the module so an
+            unauthorized visitor lands on /feed/login, not the property sign-in. */}
+        <Route
+          path="/feed/*"
+          element={
+            <Suspense fallback={<Loading label="Loading Animal Feed…" />}>
+              <FeedApp />
+            </Suspense>
+          }
+        />
 
         {/* Shared */}
         <Route path="/profile" element={<PrivateRoute><Layout><Profile /></Layout></PrivateRoute>} />
