@@ -79,6 +79,22 @@ lexicographic comparison chronological, which the movement date filters rely on.
 Parse with `feed_inventory.parse_date` (returns `None` on junk — reports must never
 raise on a malformed legacy row).
 
+## Dashboard drill-downs
+Every figure on the dashboard opens the records behind it (`feed/FeedDrilldown.tsx`).
+A drill is expressed as **the API query that reproduces the figure**, never as a
+client-side slice of a cached copy — that way the detail view is provably the same
+set of records the tile or bar counted, and it cannot drift as the aggregate evolves.
+
+If you add a figure to the dashboard, add its drill in the same change, and make the
+server classify it. The shelf-life chart is the worked example: `GET /feed/batches?bucket=`
+uses `_bucket_predicate`, the SQL mirror of `inv.expiry_bucket`, so the bar and its
+drill-down cannot disagree. Reimplementing the banding in TypeScript would have been
+the obvious shortcut and the wrong one.
+
+Charts hand back the **index** of the clicked bar/slice, not recharts' click payload:
+recharts types that argument loosely, and an index maps straight into the array the
+component was given, so the caller resolves the row from its own typed data.
+
 ## Adding to the module
 - New endpoint → `routers/feed.py`, guarded by `ManageFeed`, with a `response_model`.
 - New schema → the "Hormaal Animal Feed" section of `models/schemas.py`,

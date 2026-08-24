@@ -705,237 +705,69 @@ async def seed_demo_if_empty() -> None:
 # generator knob, not a stored column.
 
 
-def _sku(
-    sku: str,
-    name: str,
-    species: str,
-    feed_type: str,
-    brand: str,
-    size: float,
-    package: str,
-    cost: float,
-    price: float,
-    shelf_life: int,
-    reorder: int,
-    demand: int,
-) -> dict:
-    return {
-        "sku": sku,
-        "name": name,
-        "species": species,
-        "feed_type": feed_type,
-        "brand": brand,
-        "unit_size": size,
-        "package_type": package,
-        "cost": cost,
-        "price": price,
-        "shelf_life": shelf_life,
-        "reorder": reorder,
-        "demand": demand,
-    }
-
-
+# The catalogue ships with exactly one product per livestock line — the four the
+# business actually sells. Everything else about a product (package size, costs,
+# shelf life, reorder point) is editable from the console, and an admin can add
+# more SKUs there; this is the starting point, not a fixed list.
 FEED_CATALOGUE: list[dict] = [
-    # --- camel ---
-    _sku(
-        "CML-PEL-50",
-        "Camel Grower Pellets",
-        "camel",
-        "pellet",
-        "Hormaal Prime",
-        50,
-        "bag",
-        21.0,
-        29.0,
-        240,
-        40,
-        55,
-    ),
-    _sku(
-        "CML-CON-25",
-        "Camel Milk Booster Concentrate",
-        "camel",
-        "concentrate",
-        "Hormaal Prime",
-        25,
-        "sack",
-        17.5,
-        26.0,
-        180,
-        20,
-        26,
-    ),
-    _sku(
-        "CML-MIN-10",
-        "Camel Mineral Lick Block",
-        "camel",
-        "mineral",
-        "Berbera Minerals",
-        10,
-        "box",
-        6.0,
-        11.0,
-        720,
-        15,
-        18,
-    ),
-    # --- cattle ---
-    _sku(
-        "CTL-FAT-50",
-        "Cattle Fattening Ration",
-        "cattle",
-        "pellet",
-        "Hormaal Prime",
-        50,
-        "bag",
-        19.0,
-        26.5,
-        210,
-        50,
-        70,
-    ),
-    _sku(
-        "CTL-DRY-50",
-        "Dairy Cow High-Energy Mash",
-        "cattle",
-        "mash",
-        "Hormaal Prime",
-        50,
-        "bag",
-        20.5,
-        28.0,
-        150,
-        45,
-        62,
-    ),
-    _sku(
-        "CTL-HAY-20",
-        "Rhodes Grass Hay Bale",
-        "cattle",
-        "forage",
-        "Awdal Farms",
-        20,
-        "bale",
-        7.5,
-        12.5,
-        300,
-        60,
-        80,
-    ),
-    _sku(
-        "CTL-MIN-05",
-        "Cattle Trace Mineral Premix",
-        "cattle",
-        "mineral",
-        "Berbera Minerals",
-        5,
-        "bucket",
-        9.0,
-        15.0,
-        730,
-        12,
-        10,
-    ),
-    # --- goat ---
-    _sku(
-        "GOT-GRW-40",
-        "Goat & Sheep Grower Pellets",
-        "goat",
-        "pellet",
-        "Hormaal Prime",
-        40,
-        "bag",
-        16.0,
-        23.0,
-        200,
-        35,
-        48,
-    ),
-    _sku(
-        "GOT-LAC-25",
-        "Lactating Doe Concentrate",
-        "goat",
-        "concentrate",
-        "Hormaal Prime",
-        25,
-        "sack",
-        13.5,
-        20.0,
-        165,
-        20,
-        24,
-    ),
-    _sku(
-        "GOT-MIN-05",
-        "Goat Mineral Supplement",
-        "goat",
-        "mineral",
-        "Berbera Minerals",
-        5,
-        "bucket",
-        5.5,
-        10.0,
-        730,
-        10,
-        9,
-    ),
-    # --- chicken ---
-    _sku(
-        "CHK-LAY-50",
-        "Layer Mash 17% Protein",
-        "chicken",
-        "mash",
-        "Hargeisa Poultry",
-        50,
-        "bag",
-        22.0,
-        30.0,
-        120,
-        40,
-        68,
-    ),
-    _sku(
-        "CHK-BRS-50",
-        "Broiler Starter Crumble",
-        "chicken",
-        "crumble",
-        "Hargeisa Poultry",
-        50,
-        "bag",
-        24.0,
-        33.0,
-        90,
-        35,
-        58,
-    ),
-    _sku(
-        "CHK-BRF-50",
-        "Broiler Finisher Pellets",
-        "chicken",
-        "pellet",
-        "Hargeisa Poultry",
-        50,
-        "bag",
-        23.0,
-        31.5,
-        90,
-        35,
-        52,
-    ),
-    _sku(
-        "CHK-CHK-10",
-        "Chick Starter Crumble",
-        "chicken",
-        "crumble",
-        "Hargeisa Poultry",
-        10,
-        "bag",
-        6.5,
-        11.0,
-        100,
-        25,
-        30,
-    ),
+    {
+        "sku": "CAMEL-50",
+        "name": "Camel Feed",
+        "species": "camel",
+        "feed_type": "pellet",
+        "brand": "Hormaal Prime",
+        "unit_size": 50,
+        "package_type": "bag",
+        "cost": 21.00,
+        "price": 29.00,
+        "shelf_life": 240,
+        "reorder": 40,
+        "demand": 55,
+    },
+    {
+        "sku": "CATTLE-50",
+        "name": "Cattle Feed",
+        "species": "cattle",
+        "feed_type": "pellet",
+        "brand": "Hormaal Prime",
+        "unit_size": 50,
+        "package_type": "bag",
+        "cost": 19.00,
+        "price": 26.50,
+        "shelf_life": 210,
+        "reorder": 50,
+        "demand": 70,
+    },
+    {
+        "sku": "GOAT-40",
+        "name": "Goat & Sheep Feed",
+        "species": "goat",
+        "feed_type": "pellet",
+        "brand": "Hormaal Prime",
+        "unit_size": 40,
+        "package_type": "bag",
+        "cost": 16.00,
+        "price": 23.00,
+        "shelf_life": 200,
+        "reorder": 35,
+        "demand": 48,
+    },
+    {
+        "sku": "CHICKEN-50",
+        "name": "Chicken Feed",
+        "species": "chicken",
+        "feed_type": "mash",
+        "brand": "Hormaal Prime",
+        "unit_size": 50,
+        "package_type": "bag",
+        "cost": 22.00,
+        "price": 30.00,
+        # Poultry feed is the short-shelf-life line, which is why it is the one
+        # that reliably ends up with stock to write off.
+        "shelf_life": 120,
+        "reorder": 40,
+        "demand": 68,
+    },
 ]
 
 FEED_SUPPLIERS = [
@@ -945,19 +777,35 @@ FEED_SUPPLIERS = [
     "Djibouti Import Co.",
 ]
 
+#: Forces specific lots onto specific expiry dates so every panel of the dashboard
+#: has something real to show. With only four SKUs the natural spread of shelf
+#: lives no longer guarantees one of each state, so the demo states them outright.
+#: `sku -> {lot index: days from today until that lot expires}` (negative = past).
+FEED_DEMO_EXPIRY: dict[str, dict[int, int]] = {
+    # Poultry feed has the shortest shelf life, so it is the only line where a
+    # near-term expiry is plausible — forcing one onto a 240-day camel lot would
+    # imply seven months in transit.
+    "CHICKEN-50": {
+        1: -12,  # expired this month, still on the shelf awaiting write-off
+        2: 18,  # inside the 30-day warning window: discount or move it
+    },
+    "GOAT-40": {0: -150},  # long expired, and scrapped at the time
+}
+
 #: SKUs deliberately left short so the reorder alerts have live work. Maps a SKU
-#: to the units it should be sitting on today: below its reorder level for "low",
-#: zero for "out of stock". Reached by one extra clearance sale at the end of the
-#: build, so the ledger still reconciles with the remaining lot quantities.
+#: to the sellable units it should be sitting on today. Reached by one extra
+#: clearance sale at the end of the build, so the ledger still reconciles with the
+#: remaining lot quantities.
 FEED_UNDERSTOCKED: dict[str, int] = {
-    "CML-CON-25": 12,  # low — reorder level 20
-    "GOT-LAC-25": 7,  # low — reorder level 20
-    "CHK-BRS-50": 19,  # low — reorder level 35
-    "GOT-MIN-05": 0,  # out of stock
+    "GOAT-40": 22,  # low — reorder level 35
 }
 
 #: Months (1-12) of the two dry seasons, when feed demand spikes.
 FEED_PEAK_MONTHS = frozenset({1, 2, 3, 7, 8, 9})
+
+#: A lot more than this many days past its expiry is assumed to have been written
+#: off already; anything more recent stays on the shelf as work to be done.
+FEED_SCRAP_AFTER_DAYS = 30
 
 
 async def _wipe_feed(session) -> None:
@@ -971,26 +819,47 @@ async def _wipe_feed(session) -> None:
 def _feed_lot_plan(rng: random.Random, spec: dict, today: date) -> list[dict]:
     """Plan the lots for one SKU across the last ~10 months.
 
-    Every SKU gets a fresh recent lot; short-shelf-life lines also end up with an
-    already-expired or nearly-expired lot, so the expiry dashboard is never empty
-    and the write-off workflow has something real to act on.
+    Four receipts roughly a quarter apart, oldest first, so every SKU has a fresh
+    lot to sell from and an audit trail behind it. Expiry normally falls out of the
+    manufactured date plus the shelf life; ``FEED_DEMO_EXPIRY`` pins particular
+    lots to particular dates where the demo needs a guaranteed expired or
+    expiring-soon lot to show.
     """
     demand, shelf_life = spec["demand"], spec["shelf_life"]
-    ages = [285, 195, 105, 25] if demand >= 50 else [255, 135, 30]
+    forced = FEED_DEMO_EXPIRY.get(spec["sku"], {})
+    prefix = spec["sku"].split("-")[0]
     lots: list[dict] = []
-    for index, age_days in enumerate(ages):
+
+    for index, age_days in enumerate((285, 195, 105, 25)):
         received = today - timedelta(days=age_days)
-        manufactured = received - timedelta(days=rng.randint(5, 30))
-        prefix = spec["sku"].split("-")[0]
+        if index in forced:
+            # Work backwards from the expiry the demo wants: manufacture is one
+            # shelf life earlier, and the lot cannot have been received before it
+            # was made.
+            expiry = today + timedelta(days=forced[index])
+            manufactured = expiry - timedelta(days=shelf_life)
+            received = max(received, manufactured + timedelta(days=rng.randint(5, 30)))
+        else:
+            manufactured = received - timedelta(days=rng.randint(5, 30))
+            expiry = manufactured + timedelta(days=shelf_life)
+
+        # Roughly a quarter's cover each, so after ten months of sales several lots
+        # still hold stock and the FEFO story is visible. A lot that reaches its
+        # expiry with stock left is by definition one that was over-ordered, so
+        # size the deliberately-expired lots to match that story.
+        cover = rng.uniform(3.0, 4.2)
+        if forced.get(index, 1) < 0:
+            cover *= 1.9
+
         lots.append(
             {
                 "batch_code": f"{prefix}-{received.strftime('%y%m')}-{index + 1}",
-                "quantity": int(demand * rng.uniform(2.4, 3.6)),
+                "quantity": int(demand * cover),
                 # Landed cost drifts with freight and FX between shipments.
                 "unit_cost": round(spec["cost"] * rng.uniform(0.9, 1.08), 2),
                 "received": received,
                 "manufactured": manufactured,
-                "expiry": manufactured + timedelta(days=shelf_life),
+                "expiry": expiry,
                 "supplier": rng.choice(FEED_SUPPLIERS),
                 "reference": f"PO-{received.strftime('%Y%m')}-{rng.randint(100, 999)}",
             }
@@ -1195,12 +1064,13 @@ async def build_feed() -> None:
             if target is not None:
                 movements.extend(_feed_drawdown(rng, spec, lots, target, today, admin_id))
 
-            # Some expired stock has already been scrapped; the rest is left on the
-            # shelf so the expiry alerts and the write-off workflow have live work.
+            # Anything long expired was scrapped at the time — nobody leaves feed
+            # five months past date on a pallet. Recently expired lots are left on
+            # the shelf so the expiry alerts and the write-off workflow have live
+            # work waiting for the operator.
+            scrap_before = (today - timedelta(days=FEED_SCRAP_AFTER_DAYS)).isoformat()
             for lot in lots:
-                if (lot.expiry_date or "") < today.isoformat() and lot.quantity_remaining > 0:
-                    if rng.random() >= 0.45:
-                        continue
+                if (lot.expiry_date or "") < scrap_before and lot.quantity_remaining > 0:
                     scrapped = lot.quantity_remaining
                     lot.quantity_remaining = 0
                     movements.append(
@@ -1220,7 +1090,7 @@ async def build_feed() -> None:
         await session.commit()
 
     print("\n=== Hormaal Animal Feed demo inventory ready ===")
-    print(f"SKUs: {len(FEED_CATALOGUE)} across camel / cattle / goat / chicken")
+    print(f"Products: {len(FEED_CATALOGUE)} — " + ", ".join(p["name"] for p in FEED_CATALOGUE))
     print(f"Lots: {lot_count} · ledger rows: {len(movements)} (receipts, sales, write-offs)")
     print("Sign in at /feed/login with the admin account above.")
     print("===============================================\n")

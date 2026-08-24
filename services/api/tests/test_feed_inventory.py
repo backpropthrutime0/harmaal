@@ -1169,3 +1169,95 @@ async def test_a_lot_cannot_be_driven_negative(client):
     )
     assert r.status_code == 409
     assert "Only 1 unit(s) available" in r.json()["detail"]
+
+
+# ===========================================================================
+# Dashboard drill-downs
+# ===========================================================================
+
+
+async def test_bucket_filter_matches_the_charted_buckets(client):
+    """The shelf-life chart and its drill-down must agree exactly.
+
+    The chart counts lots by ``inv.expiry_bucket``; the drill-down asks the API
+    for the same band. If the two used different date arithmetic the detail view
+    would show a different set of rows than the bar the user clicked.
+    """
+    token = await _admin_token(client)
+    product = await _product(client, token, shelf_life_days=3650)
+    today = inv.today_iso()
+
+    # One lot per band, placed just inside it.
+    placements = {
+        "expired": -5,
+        "0-30": 10,
+        "31-60": 45,
+        "61-90": 75,
+        "90+": 200,
+    }
+    for label, offset in placements.items():
+        await _batch(
+            client,
+            token,
+            product["id"],
+            batch_code=label.replace("+", "PLUS"),
+            quantity=10,
+            expiry_date=inv.add_days(today, offset),
+        )
+
+    dashboard = (await client.get("/feed/dashboard", headers=_auth(token))).json()
+
+    for label in placements:
+        rows = (
+            await client.get(f"/feed/batches?bucket={label}&in_stock_only=true", headers=_auth(token))
+        ).json()
+        charted = dashboard["expiry_buckets"][label]["units"]
+        drilled = sum(b["quantity_remaining"] for b in rows)
+        assert drilled == charted == 10, f"{label}: chart {charted}, drill-down {drilled}"
+
+
+def test_undated_lots_bucket_as_the_last_band():
+    """A lot with no expiry date is charted as 90+, and the SQL band agrees.
+
+    (Undated lots can only arrive from legacy data — the API always derives an
+    expiry from the product's shelf life — but the classifier must still be
+    total, and the chart and its drill-down must classify them the same way.)
+    """
+    assert inv.expiry_bucket(None, TODAY) == "90+"
+
+
+async def test_unknown_bucket_is_rejected(client):
+    token = await _admin_token(client)
+    assert (await client.get("/feed/batches?bucket=someday", headers=_auth(token))).status_code == 422
+
+
+async def test_bucket_bands_do_not_overlap(client):
+    """Every in-stock lot lands in exactly one band, so the drill-downs partition
+    the chart rather than double-counting it."""
+    token = await _admin_token(client)
+    product = await _product(client, token, shelf_life_days=3650)
+    today = inv.today_iso()
+    # Boundary days: the edges are where an off-by-one would show up.
+    for offset in (-1, 0, 30, 31, 60, 61, 90, 91):
+        await _batch(
+            client,
+            token,
+            product["id"],
+            batch_code=f"D{offset}",
+            quantity=1,
+            expiry_date=inv.add_days(today, offset),
+        )
+
+    seen: dict[int, str] = {}
+    for label in ("expired", "0-30", "31-60", "61-90", "90+"):
+        rows = (
+            await client.get(f"/feed/batches?bucket={label}&in_stock_only=true", headers=_auth(token))
+        ).json()
+        for row in rows:
+            assert row["id"] not in seen, (
+                f"batch {row['batch_code']} in both {seen.get(row['id'])} and {label}"
+            )
+            seen[row["id"]] = label
+
+    total = (await client.get("/feed/batches?in_stock_only=true", headers=_auth(token))).json()
+    assert len(seen) == len(total), "every in-stock lot must fall in exactly one band"

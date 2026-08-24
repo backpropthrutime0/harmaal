@@ -57,6 +57,12 @@ export const retireFeedProduct = (id: number) =>
 export interface BatchFilters {
   product_id?: number;
   expiry_status?: ExpiryStatus | '';
+  /**
+   * Shelf-life band as charted by the dashboard: `expired`, `0-30`, `31-60`,
+   * `61-90`, `90+`. Classified server-side by the same rule the chart counts
+   * with, so a drill-down returns exactly the lots behind the bar.
+   */
+  bucket?: string;
   in_stock_only?: boolean;
   limit?: number;
 }

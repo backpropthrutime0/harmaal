@@ -5,6 +5,7 @@ import {
   expiryCountdown,
   isEmptySeries,
   momChange,
+  periodRange,
   share,
   shortPeriod,
   totalSold,
@@ -130,5 +131,25 @@ describe('totalSold', () => {
   it('sums units across the window', () => {
     expect(totalSold([period({ units_sold: 3 }), period({ units_sold: 4 })])).toBe(7);
     expect(totalSold([])).toBe(0);
+  });
+});
+
+describe('periodRange', () => {
+  it('spans the whole month', () => {
+    expect(periodRange('2026-01')).toEqual({ from: '2026-01-01', to: '2026-01-31' });
+    expect(periodRange('2026-04')).toEqual({ from: '2026-04-01', to: '2026-04-30' });
+  });
+
+  it('gets February right, including leap years', () => {
+    expect(periodRange('2026-02').to).toBe('2026-02-28');
+    expect(periodRange('2028-02').to).toBe('2028-02-29');
+  });
+
+  it('produces an empty window for anything unparseable', () => {
+    // A bad window must not silently become "all time" — the drill-down would
+    // then show records the chart never counted.
+    expect(periodRange('nonsense')).toEqual({ from: '', to: '' });
+    expect(periodRange('2026-13')).toEqual({ from: '', to: '' });
+    expect(periodRange('')).toEqual({ from: '', to: '' });
   });
 });

@@ -29,6 +29,38 @@ const AXIS_TICK = { fontSize: 11, fill: '#64748b' } as const;
 const GRID_STROKE = '#e2e8f0';
 
 /**
+ * Charts take an optional `onSelect(index)` so a click can open the records
+ * behind a bar or slice.
+ *
+ * The index — not recharts' click payload — is what gets handed back: recharts
+ * types its event argument very loosely, and the index maps straight into the
+ * array this module was given, so the caller resolves the row from its own data
+ * and keeps full type safety.
+ */
+type Selectable = { onSelect?: (index: number) => void };
+
+/** Recharts passes (entry, index); we only want the index. */
+const pick = (onSelect?: (index: number) => void) =>
+  onSelect ? (_entry: unknown, index: number) => onSelect(index) : undefined;
+
+const clickable = (onSelect?: (index: number) => void) =>
+  onSelect ? { cursor: 'pointer' as const } : undefined;
+
+/**
+ * Area/line charts have no per-point shape to attach a handler to, so the click
+ * lands on the chart and recharts reports which x-position was active.
+ */
+const pickCategory = (onSelect?: (index: number) => void) =>
+  onSelect
+    ? // recharts 3 reports the active index as a number *or* a string, so coerce
+      // and only fire on a real array position.
+      (state: { activeTooltipIndex?: number | string | null }) => {
+        const index = Number(state?.activeTooltipIndex);
+        if (Number.isInteger(index) && index >= 0) onSelect(index);
+      }
+    : undefined;
+
+/**
  * Tooltip for series measured in whole packages.
  *
  * Recharts' own `formatter`/`labelFormatter` props are typed against its loose
@@ -62,7 +94,7 @@ function UnitsTooltip({ active, label, payload, labelFormat }: ChartTooltipProps
  * of the chart is whether they move *together* — a month where units rise but
  * revenue doesn't is a discounting problem worth seeing.
  */
-export function SalesTrendChart({ rows }: { rows: FeedPeriod[] }): ReactElement {
+export function SalesTrendChart({ rows, onSelect }: { rows: FeedPeriod[] } & Selectable): ReactElement {
   return (
     <ChartCard
       title="Sales trend"
@@ -93,6 +125,8 @@ export function SalesTrendChart({ rows }: { rows: FeedPeriod[] }): ReactElement 
           name="Units sold"
           fill={FEED_COLORS.leaf}
           radius={[4, 4, 0, 0]}
+          onClick={pick(onSelect)}
+          style={clickable(onSelect)}
         />
         <Line
           yAxisId="money"
@@ -109,7 +143,7 @@ export function SalesTrendChart({ rows }: { rows: FeedPeriod[] }): ReactElement 
 }
 
 /** Revenue against cost of goods, so the gap (gross margin) is the visual. */
-export function MarginChart({ rows }: { rows: FeedPeriod[] }): ReactElement {
+export function MarginChart({ rows, onSelect }: { rows: FeedPeriod[] } & Selectable): ReactElement {
   return (
     <ChartCard
       title="Revenue vs cost"
@@ -118,7 +152,12 @@ export function MarginChart({ rows }: { rows: FeedPeriod[] }): ReactElement {
       emptyMessage="No revenue recorded in this window."
       exportRows={{ filename: 'feed-margin', rows }}
     >
-      <AreaChart data={rows} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+      <AreaChart
+        data={rows}
+        margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+        onClick={pickCategory(onSelect)}
+        style={clickable(onSelect)}
+      >
         <CartesianGrid stroke={GRID_STROKE} vertical={false} />
         <XAxis dataKey="period" tickFormatter={shortPeriod} tick={AXIS_TICK} tickLine={false} />
         <YAxis tickFormatter={compactMoney} tick={AXIS_TICK} tickLine={false} axisLine={false} width={56} />
@@ -131,6 +170,7 @@ export function MarginChart({ rows }: { rows: FeedPeriod[] }): ReactElement {
           stroke={FEED_COLORS.green}
           fill={FEED_COLORS.leaf}
           fillOpacity={0.25}
+          activeDot={{ r: 5 }}
         />
         <Area
           type="monotone"
@@ -152,7 +192,10 @@ export function MarginChart({ rows }: { rows: FeedPeriod[] }): ReactElement {
  * walk out of the door", and a cheap bucket of minerals is not the same risk as
  * a pallet of broiler starter.
  */
-export function ExpiryChart({ buckets }: { buckets: Record<string, FeedBucket> }): ReactElement {
+export function ExpiryChart({
+  buckets,
+  onSelect,
+}: { buckets: Record<string, FeedBucket> } & Selectable): ReactElement {
   const rows = bucketSeries(buckets);
   return (
     <ChartCard
@@ -167,7 +210,13 @@ export function ExpiryChart({ buckets }: { buckets: Record<string, FeedBucket> }
         <XAxis dataKey="bucket" tick={AXIS_TICK} tickLine={false} />
         <YAxis tickFormatter={compactMoney} tick={AXIS_TICK} tickLine={false} axisLine={false} width={56} />
         <Tooltip content={<MoneyTooltip />} />
-        <Bar dataKey="value" name="Stock value" radius={[4, 4, 0, 0]}>
+        <Bar
+          dataKey="value"
+          name="Stock value"
+          radius={[4, 4, 0, 0]}
+          onClick={pick(onSelect)}
+          style={clickable(onSelect)}
+        >
           {rows.map((row) => (
             <Cell key={row.bucket} fill={EXPIRY_BUCKET_COLOR[row.bucket] ?? FEED_COLORS.slate} />
           ))}
@@ -178,7 +227,10 @@ export function ExpiryChart({ buckets }: { buckets: Record<string, FeedBucket> }
 }
 
 /** Where the inventory money sits, by livestock line. */
-export function SpeciesMixChart({ rows }: { rows: FeedNamedTotal[] }): ReactElement {
+export function SpeciesMixChart({
+  rows,
+  onSelect,
+}: { rows: FeedNamedTotal[] } & Selectable): ReactElement {
   return (
     <ChartCard
       title="Stock value by species"
@@ -197,6 +249,8 @@ export function SpeciesMixChart({ rows }: { rows: FeedNamedTotal[] }): ReactElem
           innerRadius="45%"
           outerRadius="75%"
           paddingAngle={2}
+          onClick={pick(onSelect)}
+          style={clickable(onSelect)}
         >
           {rows.map((row, index) => (
             <Cell
@@ -211,7 +265,13 @@ export function SpeciesMixChart({ rows }: { rows: FeedNamedTotal[] }): ReactElem
 }
 
 /** Best sellers by volume over the charted window. */
-export function TopSellersChart({ rows }: { rows: FeedNamedTotal[] }): ReactElement {
+export function TopSellersChart({
+  rows,
+  onSelect,
+}: { rows: FeedNamedTotal[] } & Selectable): ReactElement {
+  // The chart shows a subset, and the click index is into *that* subset — which
+  // here is a prefix, so the indices coincide. Kept explicit so it stays correct
+  // if the slice ever becomes a sort or a filter.
   const top = rows.slice(0, 8);
   return (
     <ChartCard
@@ -234,14 +294,24 @@ export function TopSellersChart({ rows }: { rows: FeedNamedTotal[] }): ReactElem
           width={140}
         />
         <Tooltip content={<UnitsTooltip />} />
-        <Bar dataKey="units" name="Units sold" fill={FEED_COLORS.green} radius={[0, 4, 4, 0]} />
+        <Bar
+          dataKey="units"
+          name="Units sold"
+          fill={FEED_COLORS.green}
+          radius={[0, 4, 4, 0]}
+          onClick={pick(onSelect)}
+          style={clickable(onSelect)}
+        />
       </BarChart>
     </ChartCard>
   );
 }
 
 /** Per-product movement history for the drill-down view. */
-export function ProductMovementChart({ rows }: { rows: FeedPeriod[] }): ReactElement {
+export function ProductMovementChart({
+  rows,
+  onSelect,
+}: { rows: FeedPeriod[] } & Selectable): ReactElement {
   return (
     <ChartCard
       title="Stock movement"
@@ -257,9 +327,30 @@ export function ProductMovementChart({ rows }: { rows: FeedPeriod[] }): ReactEle
         <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={44} />
         <Tooltip content={<UnitsTooltip labelFormat={shortPeriod} />} />
         <Legend wrapperStyle={{ fontSize: 11 }} />
-        <Bar dataKey="units_in" name="Received" fill={FEED_COLORS.blue} radius={[4, 4, 0, 0]} />
-        <Bar dataKey="units_sold" name="Sold" fill={FEED_COLORS.leaf} radius={[4, 4, 0, 0]} />
-        <Bar dataKey="units_written_off" name="Written off" fill={FEED_COLORS.red} radius={[4, 4, 0, 0]} />
+        <Bar
+          dataKey="units_in"
+          name="Received"
+          fill={FEED_COLORS.blue}
+          radius={[4, 4, 0, 0]}
+          onClick={pick(onSelect)}
+          style={clickable(onSelect)}
+        />
+        <Bar
+          dataKey="units_sold"
+          name="Sold"
+          fill={FEED_COLORS.leaf}
+          radius={[4, 4, 0, 0]}
+          onClick={pick(onSelect)}
+          style={clickable(onSelect)}
+        />
+        <Bar
+          dataKey="units_written_off"
+          name="Written off"
+          fill={FEED_COLORS.red}
+          radius={[4, 4, 0, 0]}
+          onClick={pick(onSelect)}
+          style={clickable(onSelect)}
+        />
       </BarChart>
     </ChartCard>
   );

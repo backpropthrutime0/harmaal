@@ -131,6 +131,8 @@ export interface FeedNamedTotal {
   name: string;
   units: number;
   value: number;
+  /** Present only where the slice is a product (top sellers), so it can be drilled. */
+  product_id?: number | null;
 }
 
 export interface FeedAlert {
