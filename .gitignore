@@ -18,6 +18,9 @@ dist/
 .playwright-mcp/
 /*.png
 
+# macOS
+.DS_Store
+
 # Claude Code (personal)
 .claude/settings.local.json
 CLAUDE.local.md
