@@ -1,7 +1,19 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from './authStore';
 import { changePassword, errorMessage } from './auth/authApi';
+
+/**
+ * Sign-in page to return to once the password has been rotated.
+ *
+ * Hormaal Group runs more than one product out of this bundle and this screen is
+ * shared by all of them. A feed admin forced through here by an admin-issued
+ * one-time password must land back on `/feed/login` — otherwise the one flow
+ * that leaves `/feed` drops them into a different company's sign-in.
+ */
+function returnLoginPath(from: string | undefined): string {
+  return from?.startsWith('/feed') ? '/feed/login' : '/login';
+}
 
 export default function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -10,7 +22,10 @@ export default function ChangePassword() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const clearSession = useAuthStore((s) => s.clearSession);
+  // The guard that redirected here records the attempted path in router state.
+  const from = (location.state as { from?: string } | null)?.from;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +39,7 @@ export default function ChangePassword() {
       await changePassword(currentPassword, newPassword);
       // Token still carries the old must_change_password flag — re-authenticate.
       clearSession();
-      navigate('/login');
+      navigate(returnLoginPath(from));
     } catch (err) {
       setError(errorMessage(err, 'Could not change password.'));
     } finally {

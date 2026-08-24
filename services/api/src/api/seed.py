@@ -23,6 +23,7 @@ PERMISSIONS: dict[str, str] = {
     "manage_tenants": "Manage tenants and collect rent",
     "view_business": "View business intelligence summary",
     "manage_maintenance": "View and update maintenance work orders",
+    "manage_feed": "Manage Hormaal Animal Feed inventory",
 }
 
 # role name -> permission names
@@ -34,6 +35,11 @@ PERMISSIONS: dict[str, str] = {
 # and owners run day-to-day operations via manage_properties/manage_tenants, but
 # business intelligence is restricted. Admins can grant it to another role at
 # runtime from /people — see the seeding note below.
+#
+# "manage_feed" gates the Hormaal Animal Feed console (a sibling Hormaal Group
+# company sharing this identity store). It is likewise admin-only by default,
+# matching that product's admin-only sign-in page; an admin can grant it to a
+# dedicated feed-operator role from /people without a code change.
 ROLES: dict[str, list[str]] = {
     "admin": [
         "admin",
@@ -42,6 +48,7 @@ ROLES: dict[str, list[str]] = {
         "manage_tenants",
         "view_business",
         "manage_maintenance",
+        "manage_feed",
     ],
     "manager": [
         "manage_staff",

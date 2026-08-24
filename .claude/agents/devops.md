@@ -1,6 +1,6 @@
 ---
 name: devops
-description: Docker, docker-compose, Alembic, and CI for Harmaal. Use for container/build/deploy and migration-runtime questions.
+description: Docker, docker-compose, Alembic, and CI for the Hormaal Group monorepo. Use for container/build/deploy and migration-runtime questions.
 model: sonnet
 color: purple
 ---

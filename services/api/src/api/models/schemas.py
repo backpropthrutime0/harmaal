@@ -7,10 +7,12 @@ the boundary (ported convention from avis_tools). Response models use
 
 from __future__ import annotations
 
-from datetime import datetime
+import re
+from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from api.internal import feed_inventory
 from api.internal.password_validation import validate_password_strength
 
 # ---------------------------------------------------------------------------
@@ -475,3 +477,389 @@ class MaintenanceDashboard(BaseModel):
 
 class DetailResponse(BaseModel):
     detail: str
+
+
+# ---------------------------------------------------------------------------
+# Hormaal Animal Feed — inventory
+# ---------------------------------------------------------------------------
+# Every request model validates against the vocabularies in
+# `internal.feed_inventory` so the catalogue can't drift from the domain logic.
+
+
+def _one_of(value: str, allowed: tuple[str, ...], field: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in allowed:
+        raise ValueError(f"{field} must be one of: {', '.join(allowed)}")
+    return normalized
+
+
+def _iso_date(value: str | None) -> str | None:
+    """Accept a blank/absent date, else require a real ``YYYY-MM-DD``."""
+    if value is None or not value.strip():
+        return None
+    try:
+        return date.fromisoformat(value.strip()).isoformat()
+    except ValueError as exc:
+        raise ValueError("Date must be in YYYY-MM-DD format") from exc
+
+
+class FeedProductCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sku: str = Field(min_length=2, max_length=32)
+    name: str = Field(min_length=2, max_length=120)
+    species: str
+    feed_type: str = "pellet"
+    # Bounded to the column width: SQLite (tests) ignores VARCHAR lengths, so an
+    # unbounded field here would only fail in production, as a 500 rather than a 422.
+    brand: str | None = Field(default=None, max_length=80)
+    unit_size: float = Field(gt=0, le=100_000)
+    unit_of_measure: str = "kg"
+    package_type: str = "bag"
+    unit_cost: float = Field(ge=0, le=1_000_000)
+    unit_price: float = Field(ge=0, le=1_000_000)
+    shelf_life_days: int = Field(gt=0, le=3650)
+    reorder_level: int = Field(default=0, ge=0, le=1_000_000)
+    notes: str | None = Field(default=None, max_length=500)
+
+    @field_validator("sku")
+    @classmethod
+    def sku_format(cls, v: str) -> str:
+        # Uppercased and restricted so a SKU stays safe to print on a label and
+        # to paste into a URL/CSV without quoting.
+        normalized = v.strip().upper()
+        if not re.fullmatch(r"[A-Z0-9][A-Z0-9._-]*", normalized):
+            raise ValueError("SKU may only contain letters, digits, dot, dash and underscore")
+        return normalized
+
+    @field_validator("brand", "notes")
+    @classmethod
+    def blank_to_none(cls, v: str | None) -> str | None:
+        v = v.strip() if v else v
+        return v or None
+
+    @field_validator("name")
+    @classmethod
+    def strip_name(cls, v: str) -> str:
+        return v.strip()
+
+    @field_validator("species")
+    @classmethod
+    def species_valid(cls, v: str) -> str:
+        return _one_of(v, feed_inventory.SPECIES, "species")
+
+    @field_validator("feed_type")
+    @classmethod
+    def feed_type_valid(cls, v: str) -> str:
+        return _one_of(v, feed_inventory.FEED_TYPES, "feed_type")
+
+    @field_validator("unit_of_measure")
+    @classmethod
+    def uom_valid(cls, v: str) -> str:
+        return _one_of(v, feed_inventory.UNITS_OF_MEASURE, "unit_of_measure")
+
+    @field_validator("package_type")
+    @classmethod
+    def package_valid(cls, v: str) -> str:
+        return _one_of(v, feed_inventory.PACKAGE_TYPES, "package_type")
+
+
+class FeedProductUpdate(BaseModel):
+    """Partial update. Every field optional; ``sku`` is immutable once issued."""
+
+    model_config = ConfigDict(extra="forbid")
+    name: str | None = Field(default=None, min_length=2, max_length=120)
+    species: str | None = None
+    feed_type: str | None = None
+    brand: str | None = Field(default=None, max_length=80)
+    unit_size: float | None = Field(default=None, gt=0, le=100_000)
+    unit_of_measure: str | None = None
+    package_type: str | None = None
+    unit_cost: float | None = Field(default=None, ge=0, le=1_000_000)
+    unit_price: float | None = Field(default=None, ge=0, le=1_000_000)
+    shelf_life_days: int | None = Field(default=None, gt=0, le=3650)
+    reorder_level: int | None = Field(default=None, ge=0, le=1_000_000)
+    notes: str | None = Field(default=None, max_length=500)
+    is_active: bool | None = None
+
+    @field_validator("species")
+    @classmethod
+    def species_valid(cls, v: str | None) -> str | None:
+        return _one_of(v, feed_inventory.SPECIES, "species") if v is not None else None
+
+    @field_validator("feed_type")
+    @classmethod
+    def feed_type_valid(cls, v: str | None) -> str | None:
+        return _one_of(v, feed_inventory.FEED_TYPES, "feed_type") if v is not None else None
+
+    @field_validator("unit_of_measure")
+    @classmethod
+    def uom_valid(cls, v: str | None) -> str | None:
+        return _one_of(v, feed_inventory.UNITS_OF_MEASURE, "unit_of_measure") if v is not None else None
+
+    @field_validator("package_type")
+    @classmethod
+    def package_valid(cls, v: str | None) -> str | None:
+        return _one_of(v, feed_inventory.PACKAGE_TYPES, "package_type") if v is not None else None
+
+
+class FeedProductResponse(BaseModel):
+    """Catalogue row enriched with live stock figures derived from its lots."""
+
+    id: int
+    sku: str
+    name: str
+    species: str
+    feed_type: str
+    brand: str | None = None
+    unit_size: float
+    unit_of_measure: str
+    package_type: str
+    unit_label: str  # "50 kg bag"
+    unit_cost: float
+    unit_price: float
+    shelf_life_days: int
+    reorder_level: int
+    is_active: bool
+    notes: str | None = None
+    # --- derived ---
+    on_hand: int  # every unit physically on the shelf, expired included
+    # What could actually be sold today (on_hand minus expired lots). This — not
+    # on_hand — drives `stock_status`: a pallet of expired feed is not cover.
+    sellable_units: int
+    stock_status: str  # healthy | low | out_of_stock
+    stock_value_cost: float
+    stock_value_retail: float
+    margin_per_unit: float
+    margin_pct: float
+    batch_count: int
+    nearest_expiry: str | None = None
+    days_to_nearest_expiry: int | None = None
+    expiring_units: int  # units within the warning window
+    expired_units: int
+
+
+class FeedBatchCreate(BaseModel):
+    """Receive a lot into stock. Also books the matching ``receipt`` movement."""
+
+    model_config = ConfigDict(extra="forbid")
+    product_id: int
+    batch_code: str = Field(min_length=1, max_length=40)
+    quantity: int = Field(gt=0, le=1_000_000)
+    unit_cost: float = Field(ge=0, le=1_000_000)
+    received_date: str | None = None
+    manufactured_date: str | None = None
+    # Omit to derive from the product's shelf life (manufactured date preferred).
+    expiry_date: str | None = None
+    supplier: str | None = Field(default=None, max_length=120)
+    reference: str | None = Field(default=None, max_length=60)
+    notes: str | None = Field(default=None, max_length=500)
+
+    @field_validator("batch_code")
+    @classmethod
+    def strip_code(cls, v: str) -> str:
+        return v.strip().upper()
+
+    @field_validator("received_date", "manufactured_date", "expiry_date")
+    @classmethod
+    def dates_valid(cls, v: str | None) -> str | None:
+        return _iso_date(v)
+
+    @field_validator("supplier", "reference", "notes")
+    @classmethod
+    def blank_to_none(cls, v: str | None) -> str | None:
+        v = v.strip() if v else v
+        return v or None
+
+
+class FeedBatchResponse(BaseModel):
+    id: int
+    product_id: int
+    product_sku: str | None = None
+    product_name: str | None = None
+    batch_code: str
+    quantity_received: int
+    quantity_remaining: int
+    unit_cost: float
+    value_at_cost: float
+    received_date: str
+    manufactured_date: str | None = None
+    expiry_date: str | None = None
+    days_to_expiry: int | None = None
+    expiry_status: str  # fresh | expiring_soon | expired
+    supplier: str | None = None
+    reference: str | None = None
+    notes: str | None = None
+
+
+class FeedMovementCreate(BaseModel):
+    """Book a stock movement.
+
+    ``quantity`` is a positive magnitude for every type except ``adjustment``,
+    where the sign carries the direction of a stock-count correction. Outbound
+    movements allocate across lots FEFO unless ``batch_id`` pins a specific lot.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    product_id: int
+    movement_type: str
+    quantity: int
+    batch_id: int | None = None
+    unit_price: float | None = Field(default=None, ge=0, le=1_000_000)
+    reference: str | None = Field(default=None, max_length=60)
+    note: str | None = Field(default=None, max_length=200)
+    occurred_on: str | None = None
+
+    @field_validator("movement_type")
+    @classmethod
+    def type_valid(cls, v: str) -> str:
+        return _one_of(v, feed_inventory.MOVEMENT_TYPES, "movement_type")
+
+    @field_validator("quantity")
+    @classmethod
+    def quantity_sane(cls, v: int) -> int:
+        if v == 0:
+            raise ValueError("Quantity must not be zero")
+        if abs(v) > 1_000_000:
+            raise ValueError("Quantity is out of range")
+        return v
+
+    @field_validator("occurred_on")
+    @classmethod
+    def date_valid(cls, v: str | None) -> str | None:
+        return _iso_date(v)
+
+    @field_validator("reference", "note")
+    @classmethod
+    def blank_to_none(cls, v: str | None) -> str | None:
+        v = v.strip() if v else v
+        return v or None
+
+    @model_validator(mode="after")
+    def receipts_use_batches(self) -> FeedMovementCreate:
+        # A receipt creates a lot (cost, expiry, supplier), which this endpoint
+        # cannot express — POST /feed/batches is the only way stock arrives.
+        if self.movement_type == "receipt":
+            raise ValueError("Use POST /feed/batches to receive stock")
+        return self
+
+
+class FeedMovementResponse(BaseModel):
+    id: int
+    product_id: int
+    product_sku: str | None = None
+    product_name: str | None = None
+    batch_id: int | None = None
+    batch_code: str | None = None
+    movement_type: str
+    quantity: int  # signed
+    unit_cost: float | None = None
+    unit_price: float | None = None
+    line_cost: float  # abs(quantity) * unit_cost
+    line_revenue: float  # abs(quantity) * unit_price (sales only)
+    reference: str | None = None
+    note: str | None = None
+    occurred_on: str
+    created_at: datetime
+
+
+class FeedMovementResult(BaseModel):
+    """A movement request may fan out across several lots under FEFO."""
+
+    movements: list[FeedMovementResponse]
+    total_quantity: int  # signed total actually booked
+    on_hand: int  # product stock after the movement
+
+
+class FeedProductPeriod(BaseModel):
+    """One month of activity for a product (or for the whole catalogue)."""
+
+    period: str  # YYYY-MM
+    units_in: int
+    units_sold: int
+    units_written_off: int
+    # Signed net of stock-count corrections. Tracked apart from sold/written-off
+    # so the series reconciles to the change in stock on hand.
+    units_adjusted: int = 0
+    revenue: float
+    cogs: float
+    margin: float
+
+
+class FeedProductDetail(BaseModel):
+    """Everything the product drill-down needs, in one round trip."""
+
+    product: FeedProductResponse
+    batches: list[FeedBatchResponse] = []
+    movements: list[FeedMovementResponse] = []
+    monthly: list[FeedProductPeriod] = []
+    expiry_buckets: dict[str, dict[str, float]] = {}
+    units_sold_90d: int
+    revenue_90d: float
+    cogs_90d: float
+    margin_90d: float
+    sell_through_pct: float
+    days_of_cover: float | None = None
+
+
+class FeedNamedTotal(BaseModel):
+    """A labelled slice of a breakdown (species, status, product, …)."""
+
+    name: str
+    units: int
+    value: float
+
+
+class FeedAlert(BaseModel):
+    """A product or lot needing attention, ranked most-urgent first."""
+
+    product_id: int
+    sku: str
+    name: str
+    species: str
+    batch_id: int | None = None
+    batch_code: str | None = None
+    units: int
+    value: float
+    expiry_date: str | None = None
+    days_to_expiry: int | None = None
+    reorder_level: int | None = None
+
+
+class FeedDashboard(BaseModel):
+    """Inventory command centre — the feed admin's landing page."""
+
+    # Catalogue & stock
+    total_products: int
+    active_products: int
+    total_units: int
+    stock_value_cost: float
+    stock_value_retail: float
+    potential_margin: float
+    potential_margin_pct: float
+    # Health counts
+    low_stock_count: int
+    out_of_stock_count: int
+    expiring_soon_count: int  # products with stock inside the warning window
+    expired_count: int
+    expiring_units: int
+    expiring_value: float
+    expired_units: int
+    expired_value: float
+    expiring_value_pct: float  # share of stock value expiring soon
+    expired_value_pct: float
+    # This month
+    period: str
+    units_sold_mtd: int
+    revenue_mtd: float
+    cogs_mtd: float
+    margin_mtd: float
+    write_off_value_mtd: float
+    # Breakdowns & series
+    by_species: list[FeedNamedTotal] = []
+    by_stock_status: list[FeedNamedTotal] = []
+    expiry_buckets: dict[str, dict[str, float]] = {}
+    monthly: list[FeedProductPeriod] = []
+    top_sellers: list[FeedNamedTotal] = []
+    low_stock: list[FeedAlert] = []
+    expiring: list[FeedAlert] = []
+    expired: list[FeedAlert] = []

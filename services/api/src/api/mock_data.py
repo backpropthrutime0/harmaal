@@ -18,15 +18,19 @@ from __future__ import annotations
 
 import asyncio
 import random
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from api.db import AsyncSessionFactory
+from api.internal import feed_inventory
 from api.internal.auth import hash_password
 from api.models.orm import (
     Expense,
+    FeedBatch,
+    FeedProduct,
+    FeedStockMovement,
     Payment,
     Property,
     Role,
@@ -514,6 +518,9 @@ async def build() -> None:
     print(f"Tenants (x{NUM_HOUSES}):  {people[0]['email']} … {people[-1]['email']} / {TENANT_PASSWORD}")
     print("================================\n")
 
+    # Sibling Hormaal Group company — same demo gate, its own dataset.
+    await build_feed()
+
 
 async def seed_demo_if_empty() -> None:
     """Populate the demo dataset on first boot only — idempotent and non-destructive.
@@ -527,9 +534,551 @@ async def seed_demo_if_empty() -> None:
     """
     async with AsyncSessionFactory() as session:
         existing = (await session.execute(select(Property).limit(1))).scalar_one_or_none()
-    if existing is not None:
+        feed_existing = (await session.execute(select(FeedProduct).limit(1))).scalar_one_or_none()
+    if existing is None:
+        await build()
         return
-    await build()
+    # The property demo is already in place. The feed catalogue arrived later, so
+    # seed it on its own rather than forcing a full (destructive) rebuild.
+    if feed_existing is None:
+        await build_feed()
+
+
+# ---------------------------------------------------------------------------
+# Hormaal Animal Feed — demo inventory
+# ---------------------------------------------------------------------------
+# A sibling Hormaal Group company. Built with its own RNG so the feed dataset is
+# reproducible regardless of how much randomness the property build consumed.
+#
+# The point of this data is *signal*: every dashboard panel must have something
+# real to show. So the catalogue deliberately spans fast and slow movers, the
+# lots span fresh / expiring-soon / already-expired, and a few SKUs sit at or
+# under their reorder point. Sales are drawn FEFO through the same allocator the
+# API uses, so the ledger and the remaining lot quantities always reconcile.
+#
+# `demand` is the notional units/month used to size lots and sales — it is a
+# generator knob, not a stored column.
+
+
+def _sku(
+    sku: str,
+    name: str,
+    species: str,
+    feed_type: str,
+    brand: str,
+    size: float,
+    package: str,
+    cost: float,
+    price: float,
+    shelf_life: int,
+    reorder: int,
+    demand: int,
+) -> dict:
+    return {
+        "sku": sku,
+        "name": name,
+        "species": species,
+        "feed_type": feed_type,
+        "brand": brand,
+        "unit_size": size,
+        "package_type": package,
+        "cost": cost,
+        "price": price,
+        "shelf_life": shelf_life,
+        "reorder": reorder,
+        "demand": demand,
+    }
+
+
+FEED_CATALOGUE: list[dict] = [
+    # --- camel ---
+    _sku(
+        "CML-PEL-50",
+        "Camel Grower Pellets",
+        "camel",
+        "pellet",
+        "Hormaal Prime",
+        50,
+        "bag",
+        21.0,
+        29.0,
+        240,
+        40,
+        55,
+    ),
+    _sku(
+        "CML-CON-25",
+        "Camel Milk Booster Concentrate",
+        "camel",
+        "concentrate",
+        "Hormaal Prime",
+        25,
+        "sack",
+        17.5,
+        26.0,
+        180,
+        20,
+        26,
+    ),
+    _sku(
+        "CML-MIN-10",
+        "Camel Mineral Lick Block",
+        "camel",
+        "mineral",
+        "Berbera Minerals",
+        10,
+        "box",
+        6.0,
+        11.0,
+        720,
+        15,
+        18,
+    ),
+    # --- cattle ---
+    _sku(
+        "CTL-FAT-50",
+        "Cattle Fattening Ration",
+        "cattle",
+        "pellet",
+        "Hormaal Prime",
+        50,
+        "bag",
+        19.0,
+        26.5,
+        210,
+        50,
+        70,
+    ),
+    _sku(
+        "CTL-DRY-50",
+        "Dairy Cow High-Energy Mash",
+        "cattle",
+        "mash",
+        "Hormaal Prime",
+        50,
+        "bag",
+        20.5,
+        28.0,
+        150,
+        45,
+        62,
+    ),
+    _sku(
+        "CTL-HAY-20",
+        "Rhodes Grass Hay Bale",
+        "cattle",
+        "forage",
+        "Awdal Farms",
+        20,
+        "bale",
+        7.5,
+        12.5,
+        300,
+        60,
+        80,
+    ),
+    _sku(
+        "CTL-MIN-05",
+        "Cattle Trace Mineral Premix",
+        "cattle",
+        "mineral",
+        "Berbera Minerals",
+        5,
+        "bucket",
+        9.0,
+        15.0,
+        730,
+        12,
+        10,
+    ),
+    # --- goat ---
+    _sku(
+        "GOT-GRW-40",
+        "Goat & Sheep Grower Pellets",
+        "goat",
+        "pellet",
+        "Hormaal Prime",
+        40,
+        "bag",
+        16.0,
+        23.0,
+        200,
+        35,
+        48,
+    ),
+    _sku(
+        "GOT-LAC-25",
+        "Lactating Doe Concentrate",
+        "goat",
+        "concentrate",
+        "Hormaal Prime",
+        25,
+        "sack",
+        13.5,
+        20.0,
+        165,
+        20,
+        24,
+    ),
+    _sku(
+        "GOT-MIN-05",
+        "Goat Mineral Supplement",
+        "goat",
+        "mineral",
+        "Berbera Minerals",
+        5,
+        "bucket",
+        5.5,
+        10.0,
+        730,
+        10,
+        9,
+    ),
+    # --- chicken ---
+    _sku(
+        "CHK-LAY-50",
+        "Layer Mash 17% Protein",
+        "chicken",
+        "mash",
+        "Hargeisa Poultry",
+        50,
+        "bag",
+        22.0,
+        30.0,
+        120,
+        40,
+        68,
+    ),
+    _sku(
+        "CHK-BRS-50",
+        "Broiler Starter Crumble",
+        "chicken",
+        "crumble",
+        "Hargeisa Poultry",
+        50,
+        "bag",
+        24.0,
+        33.0,
+        90,
+        35,
+        58,
+    ),
+    _sku(
+        "CHK-BRF-50",
+        "Broiler Finisher Pellets",
+        "chicken",
+        "pellet",
+        "Hargeisa Poultry",
+        50,
+        "bag",
+        23.0,
+        31.5,
+        90,
+        35,
+        52,
+    ),
+    _sku(
+        "CHK-CHK-10",
+        "Chick Starter Crumble",
+        "chicken",
+        "crumble",
+        "Hargeisa Poultry",
+        10,
+        "bag",
+        6.5,
+        11.0,
+        100,
+        25,
+        30,
+    ),
+]
+
+FEED_SUPPLIERS = [
+    "Berbera Port Traders",
+    "Awdal Agro Supply",
+    "Hargeisa Feed Mills",
+    "Djibouti Import Co.",
+]
+
+#: SKUs deliberately left short so the reorder alerts have live work. Maps a SKU
+#: to the units it should be sitting on today: below its reorder level for "low",
+#: zero for "out of stock". Reached by one extra clearance sale at the end of the
+#: build, so the ledger still reconciles with the remaining lot quantities.
+FEED_UNDERSTOCKED: dict[str, int] = {
+    "CML-CON-25": 12,  # low — reorder level 20
+    "GOT-LAC-25": 7,  # low — reorder level 20
+    "CHK-BRS-50": 19,  # low — reorder level 35
+    "GOT-MIN-05": 0,  # out of stock
+}
+
+#: Months (1-12) of the two dry seasons, when feed demand spikes.
+FEED_PEAK_MONTHS = frozenset({1, 2, 3, 7, 8, 9})
+
+
+async def _wipe_feed(session) -> None:
+    """Clear the feed dataset (ledger first — it references lots and products)."""
+    await session.execute(delete(FeedStockMovement))
+    await session.execute(delete(FeedBatch))
+    await session.execute(delete(FeedProduct))
+    await session.commit()
+
+
+def _feed_lot_plan(rng: random.Random, spec: dict, today: date) -> list[dict]:
+    """Plan the lots for one SKU across the last ~10 months.
+
+    Every SKU gets a fresh recent lot; short-shelf-life lines also end up with an
+    already-expired or nearly-expired lot, so the expiry dashboard is never empty
+    and the write-off workflow has something real to act on.
+    """
+    demand, shelf_life = spec["demand"], spec["shelf_life"]
+    ages = [285, 195, 105, 25] if demand >= 50 else [255, 135, 30]
+    lots: list[dict] = []
+    for index, age_days in enumerate(ages):
+        received = today - timedelta(days=age_days)
+        manufactured = received - timedelta(days=rng.randint(5, 30))
+        prefix = spec["sku"].split("-")[0]
+        lots.append(
+            {
+                "batch_code": f"{prefix}-{received.strftime('%y%m')}-{index + 1}",
+                "quantity": int(demand * rng.uniform(2.4, 3.6)),
+                # Landed cost drifts with freight and FX between shipments.
+                "unit_cost": round(spec["cost"] * rng.uniform(0.9, 1.08), 2),
+                "received": received,
+                "manufactured": manufactured,
+                "expiry": manufactured + timedelta(days=shelf_life),
+                "supplier": rng.choice(FEED_SUPPLIERS),
+                "reference": f"PO-{received.strftime('%Y%m')}-{rng.randint(100, 999)}",
+            }
+        )
+    return lots
+
+
+def _month_starts(today: date, count: int) -> list[date]:
+    """First day of each of the last ``count`` months, oldest first."""
+    anchor = today.replace(day=1)
+    out = [anchor]
+    for _ in range(count - 1):
+        anchor = (anchor - timedelta(days=1)).replace(day=1)
+        out.append(anchor)
+    return list(reversed(out))
+
+
+def _feed_sale_days(rng: random.Random, start: date, end: date, count: int) -> list[date]:
+    """Pick ``count`` trading days inside a month, nudging off Friday (market closed)."""
+    span = max(0, (end - start).days)
+    days: list[date] = []
+    for _ in range(count):
+        candidate = start + timedelta(days=rng.randint(0, span))
+        if candidate.weekday() == 4 and candidate > start:
+            candidate -= timedelta(days=1)
+        days.append(candidate)
+    return sorted(days)
+
+
+def _feed_sales_for_month(
+    rng: random.Random,
+    spec: dict,
+    lots: list[FeedBatch],
+    month_start: date,
+    month_end: date,
+    admin_id: int | None,
+) -> list[FeedStockMovement]:
+    """Draw one month of FEFO sales out of the lots that had actually arrived."""
+    seasonal = 1.25 if month_start.month in FEED_PEAK_MONTHS else 0.85
+    target = int(spec["demand"] * seasonal * rng.uniform(0.7, 1.15))
+    if target <= 0:
+        return []
+
+    out: list[FeedStockMovement] = []
+    for sale_day in _feed_sale_days(rng, month_start, month_end, rng.randint(3, 7)):
+        iso = sale_day.isoformat()
+        wanted = max(1, int(target / 5 * rng.uniform(0.5, 1.5)))
+        # Only lots received by that day and not yet expired on it.
+        available = [
+            b
+            for b in lots
+            if b.quantity_remaining > 0 and b.received_date <= iso and (b.expiry_date or "9999") > iso
+        ]
+        on_hand = sum(b.quantity_remaining for b in available)
+        if on_hand <= 0:
+            continue
+        by_id = {b.id: b for b in available}
+        for allocation in feed_inventory.allocate_fefo(available, min(wanted, on_hand)):
+            lot = by_id[allocation.batch_id]
+            lot.quantity_remaining -= allocation.quantity
+            out.append(
+                FeedStockMovement(
+                    product_id=lot.product_id,
+                    batch_id=lot.id,
+                    movement_type="sale",
+                    quantity=-allocation.quantity,
+                    unit_cost=allocation.unit_cost,
+                    # Small discounts off list, as a real counter would give.
+                    unit_price=round(spec["price"] * rng.uniform(0.97, 1.0), 2),
+                    reference=f"INV-{sale_day.strftime('%y%m%d')}-{rng.randint(10, 99)}",
+                    occurred_on=iso,
+                    created_by=admin_id,
+                )
+            )
+    return out
+
+
+def _feed_drawdown(
+    rng: random.Random,
+    spec: dict,
+    lots: list[FeedBatch],
+    target: int,
+    today: date,
+    admin_id: int | None,
+) -> list[FeedStockMovement]:
+    """One extra clearance sale bringing a SKU down to ``target`` units on hand.
+
+    Sales cannot draw on expired lots (the API enforces the same rule), so the
+    target is measured against sellable stock only — leftover expired units stay
+    put for the write-off queue.
+    """
+    sellable = [b for b in lots if b.quantity_remaining > 0 and (b.expiry_date or "9999") > today.isoformat()]
+    surplus = sum(b.quantity_remaining for b in sellable) - target
+    if surplus <= 0:
+        return []
+
+    sale_day = today - timedelta(days=rng.randint(1, 6))
+    by_id = {b.id: b for b in sellable}
+    out: list[FeedStockMovement] = []
+    for allocation in feed_inventory.allocate_fefo(sellable, surplus):
+        lot = by_id[allocation.batch_id]
+        lot.quantity_remaining -= allocation.quantity
+        out.append(
+            FeedStockMovement(
+                product_id=lot.product_id,
+                batch_id=lot.id,
+                movement_type="sale",
+                quantity=-allocation.quantity,
+                unit_cost=allocation.unit_cost,
+                unit_price=round(spec["price"] * rng.uniform(0.94, 0.99), 2),
+                reference=f"INV-{sale_day.strftime('%y%m%d')}-BULK",
+                note="Bulk order — cooperative purchase",
+                occurred_on=sale_day.isoformat(),
+                created_by=admin_id,
+            )
+        )
+    return out
+
+
+async def build_feed() -> None:
+    """Create the Hormaal Animal Feed demo catalogue, lots, and sales ledger."""
+    rng = random.Random(7)
+    today = datetime.now(UTC).date()
+    months = _month_starts(today, 10)
+
+    async with AsyncSessionFactory() as session:
+        await _wipe_feed(session)
+        admin = (
+            (await session.execute(select(User).where(User.role == "admin").order_by(User.id)))
+            .scalars()
+            .first()
+        )
+        admin_id = admin.id if admin else None
+
+        products: list[tuple[FeedProduct, dict]] = []
+        for spec in FEED_CATALOGUE:
+            product = FeedProduct(
+                sku=spec["sku"],
+                name=spec["name"],
+                species=spec["species"],
+                feed_type=spec["feed_type"],
+                brand=spec["brand"],
+                unit_size=float(spec["unit_size"]),
+                unit_of_measure="kg",
+                package_type=spec["package_type"],
+                unit_cost=spec["cost"],
+                unit_price=spec["price"],
+                shelf_life_days=spec["shelf_life"],
+                reorder_level=spec["reorder"],
+                is_active=True,
+            )
+            session.add(product)
+            products.append((product, spec))
+        await session.flush()
+
+        movements: list[FeedStockMovement] = []
+        lot_count = 0
+        for product, spec in products:
+            lots = [
+                FeedBatch(
+                    product_id=product.id,
+                    batch_code=plan["batch_code"],
+                    quantity_received=plan["quantity"],
+                    quantity_remaining=plan["quantity"],
+                    unit_cost=plan["unit_cost"],
+                    received_date=plan["received"].isoformat(),
+                    manufactured_date=plan["manufactured"].isoformat(),
+                    expiry_date=plan["expiry"].isoformat(),
+                    supplier=plan["supplier"],
+                    reference=plan["reference"],
+                    created_by=admin_id,
+                )
+                for plan in _feed_lot_plan(rng, spec, today)
+            ]
+            session.add_all(lots)
+            await session.flush()  # assign lot ids before the ledger references them
+            lot_count += len(lots)
+
+            movements.extend(
+                FeedStockMovement(
+                    product_id=product.id,
+                    batch_id=lot.id,
+                    movement_type="receipt",
+                    quantity=lot.quantity_received,
+                    unit_cost=lot.unit_cost,
+                    reference=lot.reference,
+                    occurred_on=lot.received_date,
+                    created_by=admin_id,
+                )
+                for lot in lots
+            )
+
+            for month_start in months:
+                next_month = (month_start + timedelta(days=32)).replace(day=1)
+                month_end = min(today, next_month - timedelta(days=1))
+                if month_end >= month_start:
+                    movements.extend(_feed_sales_for_month(rng, spec, lots, month_start, month_end, admin_id))
+
+            # Draw the deliberately-short SKUs down to their target so the reorder
+            # panel is never empty on a fresh demo database.
+            target = FEED_UNDERSTOCKED.get(spec["sku"])
+            if target is not None:
+                movements.extend(_feed_drawdown(rng, spec, lots, target, today, admin_id))
+
+            # Some expired stock has already been scrapped; the rest is left on the
+            # shelf so the expiry alerts and the write-off workflow have live work.
+            for lot in lots:
+                if (lot.expiry_date or "") < today.isoformat() and lot.quantity_remaining > 0:
+                    if rng.random() >= 0.45:
+                        continue
+                    scrapped = lot.quantity_remaining
+                    lot.quantity_remaining = 0
+                    movements.append(
+                        FeedStockMovement(
+                            product_id=product.id,
+                            batch_id=lot.id,
+                            movement_type="write_off",
+                            quantity=-scrapped,
+                            unit_cost=lot.unit_cost,
+                            note="Past expiry — destroyed under supervision",
+                            occurred_on=lot.expiry_date,
+                            created_by=admin_id,
+                        )
+                    )
+
+        session.add_all(movements)
+        await session.commit()
+
+    print("\n=== Hormaal Animal Feed demo inventory ready ===")
+    print(f"SKUs: {len(FEED_CATALOGUE)} across camel / cattle / goat / chicken")
+    print(f"Lots: {lot_count} · ledger rows: {len(movements)} (receipts, sales, write-offs)")
+    print("Sign in at /feed/login with the admin account above.")
+    print("===============================================\n")
 
 
 if __name__ == "__main__":

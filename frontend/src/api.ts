@@ -17,6 +17,19 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
+/**
+ * Where an expired session should be sent back to.
+ *
+ * Hormaal Group runs more than one product out of this bundle, and they don't
+ * share a sign-in page: a session that dies inside the Animal Feed console
+ * belongs at `/feed/login`, not the property app's `/login`.
+ */
+function loginPathFor(pathname: string): string {
+  // Exact segment match — a future `/feedback` route is not the feed console.
+  const inFeed = pathname === '/feed' || pathname.startsWith('/feed/');
+  return inFeed ? '/feed/login' : '/login';
+}
+
 // Response interceptor: on 401, clear the session and bounce to login.
 // (Skips the auth endpoints so a failed login/2FA shows its own error.)
 api.interceptors.response.use(
@@ -28,8 +41,9 @@ api.interceptors.response.use(
     if (status === 401 && !isAuthCall && localStorage.getItem('token')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      if (window.location.pathname !== '/login') {
-        window.location.assign('/login');
+      const target = loginPathFor(window.location.pathname);
+      if (window.location.pathname !== target) {
+        window.location.assign(target);
       }
     }
     return Promise.reject(error);

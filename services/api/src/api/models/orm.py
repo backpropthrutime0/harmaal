@@ -12,7 +12,19 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Table, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.db import Base
@@ -220,3 +232,129 @@ class WorkOrderMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     work_order: Mapped[WorkOrder] = relationship(back_populates="messages")
+
+
+# ---------------------------------------------------------------------------
+# Hormaal Animal Feed — inventory
+# ---------------------------------------------------------------------------
+# A second company in the Hormaal Group, sharing this identity store (guarded by
+# the `manage_feed` permission) but with its own tables. Three layers: a catalogue
+# SKU (`FeedProduct`), the physical lots received against it (`FeedBatch`, each
+# with its own landed cost and expiry), and an append-only quantity ledger
+# (`FeedStockMovement`). Stock on hand is always derived from the lots — never
+# denormalized onto the product — so the books and the shelf cannot disagree.
+
+
+class FeedProduct(Base):
+    """A sellable feed SKU: what it is, how it's packaged, and what it costs/earns."""
+
+    __tablename__ = "feed_products"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    # Operator-facing identifier printed on shelf labels and invoices.
+    sku: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    species: Mapped[str] = mapped_column(String(20), index=True)  # camel|cattle|goat|chicken
+    feed_type: Mapped[str] = mapped_column(String(30), default="pellet")
+    brand: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+    # Package geometry: one unit == one `unit_size` `unit_of_measure` `package_type`
+    # (e.g. one "50 kg bag"). Quantities everywhere else are whole packages.
+    unit_size: Mapped[float] = mapped_column(Float, default=50.0)
+    unit_of_measure: Mapped[str] = mapped_column(String(10), default="kg")
+    package_type: Mapped[str] = mapped_column(String(20), default="bag")
+
+    # Standard cost/price. Actual cost per lot lives on the batch — this is the
+    # planning figure used when no lot is implicated (e.g. margin on the catalogue).
+    unit_cost: Mapped[float] = mapped_column(Float, default=0.0)
+    unit_price: Mapped[float] = mapped_column(Float, default=0.0)
+
+    shelf_life_days: Mapped[int] = mapped_column(Integer, default=180)
+    # Stock at or below this triggers the low-stock alert. 0 disables the alert.
+    reorder_level: Mapped[int] = mapped_column(Integer, default=0)
+
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, onupdate=func.now()
+    )
+
+    # One-way on purpose: `FeedBatch` deliberately has no `product` backref, so no
+    # code path can trip an async lazy-load (MissingGreenlet) walking back up.
+    batches: Mapped[list[FeedBatch]] = relationship(
+        cascade="all, delete-orphan", lazy="selectin", order_by="FeedBatch.expiry_date"
+    )
+
+
+class FeedBatch(Base):
+    """A physical lot of one product, with its own landed cost and expiry date.
+
+    Lots are what actually expires, so every outbound movement is allocated across
+    them first-expiry-first-out (see ``internal.feed_inventory.allocate_fefo``).
+    """
+
+    __tablename__ = "feed_batches"
+    # The router enforces these too, but a lot balance is the number the books are
+    # built on: a CHECK is the backstop that turns any future bug (or a raw SQL
+    # fix-up) into a failed transaction instead of silently wrong inventory.
+    __table_args__ = (
+        UniqueConstraint("product_id", "batch_code", name="uq_feed_batch_product_code"),
+        CheckConstraint("quantity_remaining >= 0", name="ck_feed_batch_remaining_non_negative"),
+        CheckConstraint(
+            "quantity_remaining <= quantity_received",
+            name="ck_feed_batch_remaining_within_received",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("feed_products.id", ondelete="CASCADE"), index=True)
+    # Supplier's lot number, unique within the product.
+    batch_code: Mapped[str] = mapped_column(String(40))
+
+    quantity_received: Mapped[int] = mapped_column(Integer, default=0)
+    # Drawn down by sales/write-offs; the sum across lots is the stock on hand.
+    quantity_remaining: Mapped[int] = mapped_column(Integer, default=0)
+    # Landed cost per unit for THIS lot — freight and FX move between shipments,
+    # so COGS is taken from the lot, not the product's standard cost.
+    unit_cost: Mapped[float] = mapped_column(Float, default=0.0)
+
+    received_date: Mapped[str] = mapped_column(String(10), default="")  # YYYY-MM-DD
+    manufactured_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    expiry_date: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+
+    supplier: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(60), nullable=True)  # PO / invoice no.
+    notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class FeedStockMovement(Base):
+    """Append-only ledger: one row per quantity change, never updated or deleted.
+
+    ``quantity`` is signed — positive adds stock, negative removes it — and is
+    normalized from the request by ``internal.feed_inventory.signed_quantity`` so
+    the direction always matches ``movement_type``. ``unit_cost`` snapshots the
+    lot's cost at the time (COGS) and ``unit_price`` the amount charged, so
+    historical margin survives later price changes.
+    """
+
+    __tablename__ = "feed_stock_movements"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("feed_products.id", ondelete="CASCADE"), index=True)
+    # Nullable so the ledger outlives a purged lot rather than losing the history.
+    batch_id: Mapped[int | None] = mapped_column(
+        ForeignKey("feed_batches.id", ondelete="SET NULL"), nullable=True
+    )
+    movement_type: Mapped[str] = mapped_column(String(20), index=True)
+    quantity: Mapped[int] = mapped_column(Integer)  # signed: + into stock, - out
+    unit_cost: Mapped[float | None] = mapped_column(Float, nullable=True)
+    unit_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reference: Mapped[str | None] = mapped_column(String(60), nullable=True)  # customer / invoice
+    note: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    occurred_on: Mapped[str] = mapped_column(String(10), default="", index=True)  # YYYY-MM-DD
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

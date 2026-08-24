@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Refactor Harmaal code for clarity/reuse while preserving behavior (Python async + SQLAlchemy 2.0; React/TS).
+description: Refactor Hormaal Group code for clarity/reuse while preserving behavior (Python async + SQLAlchemy 2.0; React/TS).
 ---
 
 # /refactor

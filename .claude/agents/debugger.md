@@ -1,6 +1,6 @@
 ---
 name: debugger
-description: Diagnoses Harmaal bugs across FastAPI + React + Docker by tracing symptoms to root cause. Use when something errors or behaves wrong.
+description: Diagnoses Hormaal Group bugs across FastAPI + React + Docker by tracing symptoms to root cause. Use when something errors or behaves wrong.
 model: opus
 color: cyan
 ---

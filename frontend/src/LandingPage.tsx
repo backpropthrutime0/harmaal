@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import { Link } from 'react-router-dom';
 import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { useT } from './i18n';
 
@@ -11,6 +12,15 @@ export default function LandingPage(): ReactElement {
       <div className="absolute right-4 top-4 z-20 sm:right-8 sm:top-6">
         <LanguageSwitcher />
       </div>
+
+      {/* Up to the Hormaal Group hub — this is one company of six. */}
+      <Link
+        to="/"
+        className="absolute left-4 top-4 z-20 flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white/80 px-3 py-1.5 text-sm font-semibold text-slate-500 backdrop-blur transition hover:text-[#2A5C82] sm:left-8 sm:top-6"
+      >
+        <span aria-hidden="true">←</span>
+        <span>{t('group.name')}</span>
+      </Link>
 
       {/* Hero Section */}
       <section className="relative flex min-h-[85vh] items-center overflow-hidden px-6 py-16 sm:px-10 lg:px-12">
