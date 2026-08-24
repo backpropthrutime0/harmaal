@@ -29,6 +29,11 @@ PERMISSIONS: dict[str, str] = {
 # Staff access portal roles: admin, manager (management employees), maintenance.
 # owner/tenant remain for self-registration and the tenant portal.
 # manage_staff lets managers onboard employees; admins keep full IAM via "admin".
+#
+# "view_business" (analytics + financial data) is deliberately ADMIN-ONLY: managers
+# and owners run day-to-day operations via manage_properties/manage_tenants, but
+# business intelligence is restricted. Admins can grant it to another role at
+# runtime from /people — see the seeding note below.
 ROLES: dict[str, list[str]] = {
     "admin": [
         "admin",
@@ -42,13 +47,19 @@ ROLES: dict[str, list[str]] = {
         "manage_staff",
         "manage_properties",
         "manage_tenants",
-        "view_business",
         "manage_maintenance",
     ],
     "maintenance": ["manage_maintenance"],
-    "owner": ["manage_properties", "manage_tenants", "view_business"],
+    "owner": ["manage_properties", "manage_tenants"],
     "tenant": [],
 }
+
+# The ROLES map above is a *bootstrap default*, not a source of truth. Once a role
+# row exists, its permissions are owned by the admin UI (PUT /auth/roles/{id}/permissions)
+# and seeding leaves them alone — otherwise every restart would silently undo an
+# admin's grants/revocations. The sole exception is the "admin" role, which is always
+# reconciled to hold every permission so a new permission can never lock admins out.
+_ALWAYS_FULL_ACCESS_ROLE = "admin"
 
 
 async def seed(session: AsyncSession) -> None:
@@ -72,7 +83,11 @@ async def seed(session: AsyncSession) -> None:
         if not role:
             role = Role(name=name, description=f"{name} role", is_system=True)
             session.add(role)
-        role.permissions = [perms[p] for p in perm_names]
+            role.permissions = [perms[p] for p in perm_names]
+        elif name == _ALWAYS_FULL_ACCESS_ROLE:
+            # Never let an admin lock themselves out of a newly added permission.
+            role.permissions = list(perms.values())
+        # Any other existing role keeps whatever an admin configured in the UI.
     await session.flush()
 
     # Root admin

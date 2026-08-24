@@ -31,6 +31,7 @@ alembic -c shared/migrations/alembic.ini upgrade head
 # Frontend
 cd frontend && npm install && npm run dev    # http://localhost:5173
 cd frontend && npx tsc --noEmit && npm run build
+cd frontend && npm test                      # vitest (jsdom via per-file docblock)
 ```
 
 ## Coding standards
@@ -42,7 +43,7 @@ cd frontend && npx tsc --noEmit && npm run build
 - JWT HS256 only; MFA-stage tokens can't access the API. TOTP `valid_window=1`; secret returned only at setup (Core scope: stored plaintext — harden with pgcrypto later). bcrypt + dummy-hash timing defense. Never serialize `hashed_password`/`totp_secret`. CORS limited to `settings.cors_origins`.
 
 ## Key endpoints
-`POST /auth/register` · `POST /auth/login` · `POST /auth/verify-2fa` · `POST /auth/setup-totp` · `POST /auth/confirm-totp` · `DELETE /auth/totp` · `POST /auth/change-password` · `GET /auth/me` · `GET/POST /auth/users` (perm `manage_staff` or `admin`; non-admins may only create/see staff roles) · property/tenant/payment CRUD · `GET /business/summary` (perm `view_business`) · `GET /tenants/me` (tenant portal).
+`POST /auth/register` · `POST /auth/login` · `POST /auth/verify-2fa` · `POST /auth/setup-totp` · `POST /auth/confirm-totp` · `DELETE /auth/totp` · `POST /auth/change-password` · `GET /auth/me` · `GET/POST /auth/users` (perm `manage_staff` or `admin`; non-admins may only create/see staff roles) · `GET /auth/roles` · `GET /auth/permissions` · `PUT /auth/roles/{id}/permissions` · `PUT /auth/users/{id}/roles` (all perm `admin`) · property/tenant/payment CRUD · `GET /business/summary` (perm `view_business`) · `GET /tenants/me` (tenant portal).
 
 ## Staff onboarding & i18n
 - **Employees** (`/employees`, perm `manage_staff`): managers onboard employees. Non-admins may only *create* `maintenance` (`STAFF_ASSIGNABLE_ROLES` in `routers/auth.py`) — only admins mint `manager` peers — but may *view* both staff roles (`STAFF_VISIBLE_ROLES`). Full IAM stays on `/people` (perm `admin`).
@@ -50,3 +51,10 @@ cd frontend && npx tsc --noEmit && npm run build
 
 ## Seeded data
 On startup `seed.py` creates roles (`admin`, `owner`, `manager`, `maintenance`, `tenant`), permissions (`admin`, `manage_staff`, `manage_properties`, `manage_tenants`, `view_business`, `manage_maintenance`), and a root admin from `ROOT_EMAIL`/`ROOT_PASSWORD`.
+
+**Role permissions are seeded once.** `ROLES` in `seed.py` is a bootstrap default: an existing role keeps whatever an admin configured in the UI, so restarts never undo a grant. The lone exception is the `admin` role, always reconciled to hold every permission so a new permission can't lock admins out. Change a shipped default via a data migration (see `0006_admin_only_business_access.py`), not by editing `ROLES` alone.
+
+## Business intelligence access
+`view_business` (analytics + financial data) is **admin-only**: `/analytics`, `/dashboard/admin`, and all of `/finance/*` (monthly rollups and the expense ledger, reads *and* writes). Managers and owners run operations via `manage_properties`/`manage_tenants` — `/dashboard/manager` guards on `manage_tenants` so their landing page still works, and `ManagerDashboard` hides its cash/expense panel without `view_business`.
+
+Admins regrant it without a code change from **/people → Roles & Permissions** (role→permission matrix) and assign roles per user from the Users tab. Guard rails: the `admin` role must keep `admin`, unknown names are rejected, and an admin cannot strip their own access. Note permissions are carried in the JWT, so a grant/revocation applies at the affected user's next sign-in.

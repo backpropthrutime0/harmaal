@@ -14,7 +14,7 @@ from typing import Annotated
 
 import jwt as _jwt
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,7 +35,7 @@ from api.internal.auth import (
     verify_password,
     verify_totp,
 )
-from api.models.orm import Role, User
+from api.models.orm import Permission, Role, User, role_permissions, user_roles
 from api.models.schemas import (
     AdminResetPasswordRequest,
     ChangePasswordRequest,
@@ -45,8 +45,12 @@ from api.models.schemas import (
     DisableTotpRequest,
     LoginRequest,
     LoginResponse,
+    PermissionOut,
     RegisterRequest,
+    RoleDetail,
     SetupTotpResponse,
+    UpdateRolePermissionsRequest,
+    UpdateUserRolesRequest,
     UserResponse,
     VerifyMFARequest,
 )
@@ -403,3 +407,168 @@ async def admin_reset_password(
     user.login_attempts = 0
     user.login_locked_until = None
     await session.commit()
+
+
+# ---------------------------------------------------------------------------
+# RBAC administration (requires "admin" permission)
+#
+# Roles are the unit of authorization: a role holds permissions, a user holds
+# roles. These endpoints let an admin grant or revoke an authorization —
+# e.g. "view_business" (analytics + financial data) — without a code change.
+#
+# Note: a JWT carries the permission list issued at login, so a revocation takes
+# effect the next time the affected user signs in (or when their token expires).
+# Grants behave the same way. The UI surfaces this.
+# ---------------------------------------------------------------------------
+
+# Coarse ``users.role`` drives frontend routing and the staff-roster filters, so it
+# is kept in sync with the RBAC role assignment: the most privileged role wins.
+_ROLE_PRECEDENCE = ("admin", "owner", "manager", "maintenance", "tenant")
+
+# Guard rails that keep the platform administrable no matter what an admin clicks.
+_ADMIN_ROLE = "admin"
+_ADMIN_PERMISSION = "admin"
+
+
+def _role_detail(role: Role, user_count: int = 0) -> RoleDetail:
+    return RoleDetail(
+        id=role.id,
+        name=role.name,
+        description=role.description,
+        is_system=role.is_system,
+        permissions=sorted(p.name for p in role.permissions),
+        user_count=user_count,
+    )
+
+
+async def _role_user_counts(session: AsyncSession) -> dict[int, int]:
+    rows = (
+        await session.execute(select(user_roles.c.role_id, func.count()).group_by(user_roles.c.role_id))
+    ).all()
+    return dict(rows)  # type: ignore[arg-type]
+
+
+async def _resolve_permissions(names: list[str], session: AsyncSession) -> list[Permission]:
+    """Map permission names to rows, rejecting anything that isn't seeded."""
+    wanted = set(names)
+    found = (await session.execute(select(Permission).where(Permission.name.in_(wanted)))).scalars().all()
+    missing = wanted - {p.name for p in found}
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown permission(s): {', '.join(sorted(missing))}",
+        )
+    return list(found)
+
+
+@router.get("/permissions", response_model=list[PermissionOut])
+async def list_permissions(
+    _: Annotated[TokenData, Depends(RequirePermission("admin"))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[PermissionOut]:
+    """Every authorization that can be granted to a role."""
+    perms = (await session.execute(select(Permission).order_by(Permission.name))).scalars().all()
+    return [PermissionOut.model_validate(p) for p in perms]
+
+
+@router.get("/roles", response_model=list[RoleDetail])
+async def list_roles(
+    _: Annotated[TokenData, Depends(RequirePermission("admin"))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> list[RoleDetail]:
+    """Roles with their currently granted permissions and how many users hold them."""
+    roles = (
+        (await session.execute(select(Role).options(selectinload(Role.permissions)).order_by(Role.name)))
+        .scalars()
+        .all()
+    )
+    counts = await _role_user_counts(session)
+    return [_role_detail(r, counts.get(r.id, 0)) for r in roles]
+
+
+@router.put("/roles/{role_id}/permissions", response_model=RoleDetail)
+async def set_role_permissions(
+    role_id: int,
+    body: UpdateRolePermissionsRequest,
+    _: Annotated[TokenData, Depends(RequirePermission("admin"))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> RoleDetail:
+    """Replace a role's permission set — this is how an authorization such as
+    ``view_business`` is granted to or revoked from every user holding the role."""
+    role = (
+        await session.execute(select(Role).options(selectinload(Role.permissions)).where(Role.id == role_id))
+    ).scalar_one_or_none()
+    if not role:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Role not found")
+
+    requested = set(body.permissions)
+    # The admin role must keep full IAM, or nobody can ever restore access.
+    if role.name == _ADMIN_ROLE and _ADMIN_PERMISSION not in requested:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The admin role must keep the 'admin' permission",
+        )
+
+    role.permissions = await _resolve_permissions(body.permissions, session)
+    await session.commit()
+    counts = await _role_user_counts(session)
+    return _role_detail(role, counts.get(role.id, 0))
+
+
+@router.put("/users/{user_id}/roles", response_model=UserResponse)
+async def set_user_roles(
+    user_id: int,
+    body: UpdateUserRolesRequest,
+    actor: Annotated[TokenData, Depends(RequirePermission("admin"))],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> UserResponse:
+    """Replace the roles assigned to a user, syncing the coarse ``users.role``."""
+    user = await _load_user(user_id, session)
+
+    wanted = sorted(set(body.roles))
+    stmt = select(Role).options(selectinload(Role.permissions)).where(Role.name.in_(wanted))
+    roles = (await session.execute(stmt)).scalars().all()
+    missing = set(wanted) - {r.name for r in roles}
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown role(s): {', '.join(sorted(missing))}",
+        )
+
+    grants_admin = any(_ADMIN_PERMISSION in {p.name for p in r.permissions} for r in roles)
+    # Don't let an admin strip their own IAM access and lock themselves out.
+    if user.id == actor.user_id and not grants_admin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot remove your own admin access",
+        )
+    # Keep at least one administrator on the platform.
+    if not grants_admin and _ADMIN_PERMISSION in set(user.permission_names):
+        admin_role_ids = (
+            select(role_permissions.c.role_id)
+            .select_from(role_permissions.join(Permission, Permission.id == role_permissions.c.permission_id))
+            .where(Permission.name == _ADMIN_PERMISSION)
+        )
+        remaining = (
+            await session.execute(
+                select(func.count(func.distinct(User.id)))
+                .select_from(User)
+                .join(user_roles, user_roles.c.user_id == User.id)
+                .where(
+                    User.id != user.id,
+                    User.is_active.is_(True),
+                    user_roles.c.role_id.in_(admin_role_ids),
+                )
+            )
+        ).scalar_one()
+        if not remaining:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one active administrator must remain",
+            )
+
+    user.roles = list(roles)
+    names = {r.name for r in roles}
+    user.role = next((r for r in _ROLE_PRECEDENCE if r in names), user.role)
+    await session.commit()
+    return _user_out(await _load_user(user.id, session))

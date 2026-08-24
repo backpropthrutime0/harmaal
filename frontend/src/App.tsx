@@ -45,7 +45,8 @@ export default function App() {
         {/* Financials / rent roll (manage_tenants) */}
         <Route path="/financials" element={<PrivateRoute permission="manage_tenants"><Layout><Financials /></Layout></PrivateRoute>} />
 
-        {/* Analytics / business intelligence (view_business: admin, manager, owner) */}
+        {/* Analytics / business intelligence (view_business — admin-only by default;
+            an admin can grant the permission to another role from /people) */}
         <Route
           path="/analytics"
           element={

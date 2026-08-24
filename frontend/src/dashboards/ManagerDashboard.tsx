@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getManagerDashboard, listWorkOrders } from '../data/api';
+import { useAuthStore } from '../authStore';
 import type { ManagerDashboard as ManagerData, WorkOrder } from '../data/types';
 import { Card, EmptyState, Loading, Modal, PageHeader, StatCard } from '../components/ui';
 import { money } from '../format';
@@ -80,6 +81,7 @@ function WorkOrderBreakdownModal({ onClose }: { onClose: () => void }) {
 export default function ManagerDashboard() {
   const [data, setData] = useState<ManagerData | null>(null);
   const [showWorkOrders, setShowWorkOrders] = useState(false);
+  const canViewBusiness = useAuthStore((s) => s.hasPermission('view_business'));
 
   useEffect(() => {
     getManagerDashboard().then(setData).catch(() => setData(null));
@@ -105,9 +107,13 @@ export default function ManagerDashboard() {
 
       {showWorkOrders && <WorkOrderBreakdownModal onClose={() => setShowWorkOrders(false)} />}
 
-      <div className="mb-6">
-        <MonthlyFinancials />
-      </div>
+      {/* Cash & expense ledger is business data (view_business) — admin-only by
+          default, so managers see the operational panels below instead. */}
+      {canViewBusiness && (
+        <div className="mb-6">
+          <MonthlyFinancials />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="p-6">

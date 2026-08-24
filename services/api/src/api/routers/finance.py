@@ -23,8 +23,10 @@ from api.models.schemas import ExpenseCreate, ExpenseResponse, MonthlyFinancials
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 
+# Financial reporting + the expense ledger are business data: admin-only by default
+# (view_business is no longer granted to manager/owner). Reads and writes share the
+# same guard so no role can log an expense it is not allowed to see.
 ViewBusiness = Annotated[TokenData, Depends(RequirePermission("view_business"))]
-ManageTenants = Annotated[TokenData, Depends(RequirePermission("manage_tenants"))]
 
 
 def _today() -> str:
@@ -144,7 +146,7 @@ async def list_expenses(
 @router.post("/expenses", response_model=ExpenseResponse, status_code=201)
 async def create_expense(
     body: ExpenseCreate,
-    current: ManageTenants,
+    current: ViewBusiness,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ExpenseResponse:
     if body.property_id is not None:
@@ -172,7 +174,7 @@ async def create_expense(
 @router.delete("/expenses/{expense_id}", status_code=204)
 async def delete_expense(
     expense_id: int,
-    _: ManageTenants,
+    _: ViewBusiness,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
     expense = (await session.execute(select(Expense).where(Expense.id == expense_id))).scalar_one_or_none()

@@ -120,6 +120,7 @@ export interface AdminUserRow {
   is_active: boolean;
   totp_enabled: boolean;
   permissions: string[];
+  roles: { id: number; name: string }[];
 }
 export const listUsers = () => api.get<AdminUserRow[]>('/auth/users').then((r) => r.data);
 export const createUser = (body: {
@@ -128,6 +129,31 @@ export const createUser = (body: {
   display_name?: string;
   phone?: string;
 }) => api.post<{ user: AdminUserRow; generated_otp: string }>('/auth/users', body).then((r) => r.data);
+
+// --- RBAC: roles & permissions (admin) ---
+/** A fine-grained authorization that can be granted to a role. */
+export interface PermissionRow {
+  id: number;
+  name: string;
+  description: string | null;
+}
+/** A role plus the authorizations currently granted to it. */
+export interface RoleRow {
+  id: number;
+  name: string;
+  description: string | null;
+  is_system: boolean;
+  permissions: string[];
+  user_count: number;
+}
+export const listPermissions = () => api.get<PermissionRow[]>('/auth/permissions').then((r) => r.data);
+export const listRoles = () => api.get<RoleRow[]>('/auth/roles').then((r) => r.data);
+/** Replace a role's authorizations — omitted names are revoked from every holder. */
+export const setRolePermissions = (roleId: number, permissions: string[]) =>
+  api.put<RoleRow>(`/auth/roles/${roleId}/permissions`, { permissions }).then((r) => r.data);
+/** Replace the roles assigned to a user (the coarse role follows automatically). */
+export const setUserRoles = (userId: number, roles: string[]) =>
+  api.put<AdminUserRow>(`/auth/users/${userId}/roles`, { roles }).then((r) => r.data);
 
 // --- maintenance staff (manager-accessible, for assignment dropdowns) ---
 export interface MaintenanceStaff {

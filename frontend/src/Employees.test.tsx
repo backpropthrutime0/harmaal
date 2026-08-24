@@ -65,6 +65,7 @@ interface StubUser {
   is_active: boolean;
   totp_enabled: boolean;
   permissions: string[];
+  roles: { id: number; name: string }[];
 }
 
 const makeUser = (overrides: Partial<StubUser> = {}): StubUser => ({
@@ -76,6 +77,7 @@ const makeUser = (overrides: Partial<StubUser> = {}): StubUser => ({
   is_active: true,
   totp_enabled: false,
   permissions: ['manage_staff'],
+  roles: [{ id: 4, name: 'manager' }],
   ...overrides,
 });
 

@@ -17,8 +17,13 @@ from api.models.schemas import AdminDashboard, MaintenanceDashboard, ManagerDash
 
 router = APIRouter(prefix="/dashboard", tags=["dashboards"])
 
+# Business intelligence (admin-only by default; grantable per-role from /people).
 ViewBusiness = Annotated[TokenData, Depends(RequirePermission("view_business"))]
 ManageMaintenance = Annotated[TokenData, Depends(RequirePermission("manage_maintenance"))]
+# The manager dashboard is day-to-day operations (rent due, overdue tenants, work
+# orders), not business intelligence — it stays on manage_tenants so managers keep
+# their landing page after view_business became admin-only.
+ManageTenants = Annotated[TokenData, Depends(RequirePermission("manage_tenants"))]
 
 _OPEN_WO = ("open", "assigned", "in_progress")
 
@@ -74,7 +79,7 @@ async def admin_dashboard(
 
 @router.get("/manager", response_model=ManagerDashboard)
 async def manager_dashboard(
-    _: ViewBusiness,
+    _: ManageTenants,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> ManagerDashboard:
     now = _now()

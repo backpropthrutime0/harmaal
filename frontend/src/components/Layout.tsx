@@ -47,6 +47,7 @@ const STAFF_NAV: NavSection[] = [
   },
   {
     headingKey: 'nav.section.insights',
+    // view_business is admin-only by default; admins can grant it per-role from /people.
     items: [{ to: '/analytics', labelKey: 'nav.analytics', icon: '📈', permission: 'view_business' }],
   },
   {

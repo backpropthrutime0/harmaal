@@ -142,6 +142,41 @@ class RoleOut(BaseModel):
     description: str | None = None
 
 
+class PermissionOut(BaseModel):
+    """A fine-grained authorization that can be granted to a role."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: str | None = None
+
+
+class RoleDetail(BaseModel):
+    """A role plus the permissions currently granted to it (admin RBAC screen)."""
+
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
+    description: str | None = None
+    is_system: bool = False
+    permissions: list[str] = []
+    user_count: int = 0
+
+
+class UpdateRolePermissionsRequest(BaseModel):
+    """Full replacement of a role's permission set — omitted names are revoked."""
+
+    model_config = ConfigDict(extra="forbid")
+    permissions: list[str]
+
+
+class UpdateUserRolesRequest(BaseModel):
+    """Full replacement of the roles assigned to a user."""
+
+    model_config = ConfigDict(extra="forbid")
+    roles: list[str]
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
